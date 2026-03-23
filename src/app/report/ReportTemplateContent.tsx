@@ -174,9 +174,6 @@ export default function ReportTemplateContent() {
                             <div style={{ color: HEADER_TEXT, fontSize: '22px', fontWeight: 900, letterSpacing: '-0.3px', lineHeight: 1.1 }}>
                                 Seoptima
                             </div>
-                            <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: '11px', marginTop: '3px', fontWeight: 400, letterSpacing: '0.02em' }}>
-                                The Self-Healing SEO Platform
-                            </div>
                         </div>
                     </div>
 

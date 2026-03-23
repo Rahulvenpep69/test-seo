@@ -5,7 +5,7 @@ import crypto from "crypto";
 // Helper to solve ByetHost/InfinityFree security wall
 const solveSecurityWall = (html: string): string | null => {
     try {
-        const matches = html.match(/toNumbers\("([a-f0-9]+)"\)/g);
+        const matches = html.match(/toNumbers\s*\(\s*"([a-f0-9]+)"\s*\)/g);
         if (!matches || matches.length < 3) return null;
 
         const hexValues = matches.map((m) => m.match(/"([a-f0-9]+)"/)?.[1] || "");
@@ -60,7 +60,8 @@ export async function POST(req: NextRequest) {
                 validateStatus: () => true,
             });
 
-            if (typeof res.data === "string" && res.data.includes("aes.js")) {
+            // If 403, it might be the security wall
+            if ((res.status === 403 || res.status === 503) && typeof res.data === "string" && res.data.includes("aes.js")) {
                 const solvedCookie = solveSecurityWall(res.data);
                 if (solvedCookie) {
                     currentCookie = solvedCookie;
@@ -86,6 +87,12 @@ export async function POST(req: NextRequest) {
                         ...p,
                         type: type === "posts" ? "post" : "page",
                     }));
+
+                // If we still don't have an array, check if it's a 403 error message
+                if (res.status === 403) {
+                    throw new Error("Access Forbidden by hosting provider. Please use the 'PHP Connection (Bridge)' method instead.");
+                }
+
                 return [];
             }
 
@@ -106,7 +113,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json(
                 {
                     message:
-                        "No posts or pages found. Please ensure your REST API is accessible.",
+                        "No posts or pages found. If your site is on ByetHost/InfinityFree, please use the 'PHP Connection' method.",
                 },
                 { status: 404 }
             );
@@ -116,7 +123,7 @@ export async function POST(req: NextRequest) {
     } catch (error: any) {
         return NextResponse.json(
             {
-                message: error.message,
+                message: error.message || "Failed to connect to WordPress site.",
                 data: error.response?.data,
             },
             { status: error.response?.status || 500 }

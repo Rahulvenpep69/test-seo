@@ -65,8 +65,8 @@ export default function WebsiteIntegrationPage() {
             }
 
             setStep("keywords");
-        } catch (err) {
-            setError("Failed to fetch site data. Please check your credentials and URL.");
+        } catch (err: any) {
+            setError(err instanceof Error ? err.message : "Failed to fetch site data. Please check your credentials and URL.");
         } finally {
             setIsProcessing(false);
         }

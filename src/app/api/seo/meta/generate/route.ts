@@ -27,26 +27,96 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Insufficient AI credits' }, { status: 402 });
         }
 
-        const optimizedPages = await Promise.all(pages.map(async (page) => {
-            const prompt = `Generate an SEO-optimized meta title and meta description for the following page content:
+        const optimizedPages = await Promise.all(pages.map(async (page, index) => {
+            // Clean input data from junk words and deduplicate
+            const clean = (text: string) => {
+                if (!text) return '';
+                const junk = [/svg/gi, /icon/gi, /file/gi, /image/gi, /path/gi, /cls/gi, /div/gi, /span/gi, /script/gi, /style/gi, /service-svg/gi, /save-svg/gi, /speak-svg/gi, /sizzle-svg/gi, /sell-svg/gi, /marketingsell/gi];
+                let t = text;
+                junk.forEach(r => t = t.replace(r, ''));
+
+                // Deduplicate words case-insensitively
+                const words = t.split(/\s+/);
+                const uniqueWords: string[] = [];
+                const seen = new Set<string>();
+                words.forEach(w => {
+                    const low = w.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    if (low && !seen.has(low)) {
+                        seen.add(low);
+                        uniqueWords.push(w);
+                    }
+                });
+
+                return uniqueWords.join(' ').replace(/[-\s]+$/, '').trim();
+            };
+
+            const cleanTitle = clean(page.title);
+            const cleanH1 = clean(page.h1);
+            const cleanH2 = clean(page.h2 || '');
+            const cleanContent = clean(page.content || '');
+            const brandName = 'Camdew';
+
+            // Identify page intent
+            const url = page.url.toLowerCase();
+            let intent = 'General';
+            if (url.includes('/about')) intent = 'About';
+            else if (url.includes('/service')) intent = 'Service';
+            else if (url.includes('/product')) intent = 'Product';
+            else if (url.includes('/contact')) intent = 'Contact';
+            else if (url.includes('/blog')) intent = 'Blog';
+
+            const prompt = `You are an advanced SEO AI.
+Your job is to analyze the given page content and generate a UNIQUE SEO Title and Meta Description.
+
+IMPORTANT:
+- Each page MUST be different
+- Use the ACTUAL page content to understand context
+- Do NOT reuse descriptions from other pages
+- Do NOT repeat keywords
+
+ANALYZE:
+1. What is this page about?
+2. What value does it provide?
+3. What makes it different?
+
+TITLE RULES:
+- 50–60 characters
+- Based on page topic (not generic)
+- Include primary keyword naturally
+- Add brand at end
+
+DESCRIPTION RULES:
+- 140–160 characters
+- Summarize THIS page content only
+- Add value + CTA
+- No duplication
+
+INPUT:
 URL: ${page.url}
-Title: ${page.title}
-H1: ${page.h1}
-Existing Description: ${page.description}
+Page Type: ${intent}
+H1: ${cleanH1}
+H2: ${cleanH2}
+Main Content: ${cleanContent.substring(0, 500)}
+Keywords: ${clean(`${intent} ${cleanH1} ${cleanH2}`)}
+Brand: ${brandName}
 
-Rules:
-1. Meta Title: Must be between 50 and 60 characters. Human-readable, includes high-search keywords naturally.
-2. Meta Description: Must be between 150 and 160 characters. Compelling, include a call to action, and use high-search keywords.
-3. Tone: Human-like, professional, and SEO-focused.
+ANTI-DUPLICATION RULE:
+If this output is similar to previous pages, rewrite it completely.
 
-Format:
-Title: [Generated Title]
-Description: [Generated Description]`;
+OUTPUT FORMAT:
+Title: [clean SEO title]
+Description: [clean meta description]`;
 
             let generatedTitle = '';
             let generatedDesc = '';
 
             const apiKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
+
+            const urlKeywords = page.url.split('/').filter(Boolean).pop()?.replace(/[-_.]/g, ' ') || '';
+            const combinedKeywords = clean(`${urlKeywords} ${cleanH1} ${cleanH2.split(',')[0]}`).trim();
+
+            // Vary fallback structure based on index to ensure uniqueness
+            const variation = index % 3;
 
             if (apiKey) {
                 try {
@@ -59,21 +129,7 @@ Description: [Generated Description]`;
                             body: JSON.stringify({
                                 contents: [{
                                     parts: [{
-                                        text: `You are a professional SEO expert. 
-                                        Analyze this page content and URL to generate a high-performing SEO meta title and meta description.
-                                        
-                                        URL: ${page.url}
-                                        Current Title: ${page.title}
-                                        Current H1: ${page.h1}
-                                        Current Description: ${page.description}
-                                        
-                                        Goal: Extract and use high-search-volume keywords that are highly relevant to the actual content.
-                                        
-                                        Rules:
-                                        1. Meta Title: 50-60 characters. Must be catchy and keyword-rich.
-                                        2. Meta Description: 150-160 characters. Must include a clear call to action and natural keyword integration.
-                                        
-                                        Return ONLY a JSON object with "title" and "description" keys. Do not include markdown.`
+                                        text: `${prompt}\n\nReturn ONLY a JSON object with "title" and "description" keys. Do not include markdown.`
                                     }]
                                 }]
                             })
@@ -89,10 +145,10 @@ Description: [Generated Description]`;
                         const completion = await openai.chat.completions.create({
                             model: 'gpt-4o-mini',
                             messages: [
-                                { role: 'system', content: 'You are an expert SEO specialist. Follow character limits strictly.' },
+                                { role: 'system', content: 'You are an advanced SEO AI. Analyze content deeply and ensure perfect uniqueness.' },
                                 { role: 'user', content: prompt }
                             ],
-                            temperature: 0.7,
+                            temperature: 0.9, // Higher for maximum uniqueness
                         });
 
                         const content = completion.choices[0]?.message?.content || '';
@@ -101,13 +157,32 @@ Description: [Generated Description]`;
                         generatedDesc = lines.find(l => l.startsWith('Description:'))?.replace('Description:', '').trim() || '';
                     }
                 } catch (err) {
-                    console.error("AI Generation failed, using dummy fallback", err);
-                    generatedTitle = (page.title || `Optimized Title for ${page.url}`).substring(0, 60);
-                    generatedDesc = (page.description || `Optimized Meta Description for ${page.url}. Visit us for more information.`).substring(0, 160);
+                    console.error("AI Generation failed, using content-aware fallback", err);
+                    const titleBase = combinedKeywords || cleanTitle;
+
+                    if (variation === 0) {
+                        generatedTitle = `${titleBase} - Custom ${intent} Solutions | ${brandName}`;
+                    } else if (variation === 1) {
+                        generatedTitle = `${intent}: ${cleanH1 || titleBase} | ${brandName}`;
+                    } else {
+                        generatedTitle = `Why Choose Our ${intent} at ${brandName}? | ${titleBase}`;
+                    }
+
+                    generatedDesc = `Explore our ${intent} page to see how ${brandName} leverages ${cleanH1 || 'expert strategies'} to deliver results. ${cleanH2 ? 'Learn about ' + cleanH2.split(',')[0] : 'Transform your growth'}.`.substring(0, 160);
                 }
             } else {
-                generatedTitle = (page.title || `Optimized Title for ${page.url}`).substring(0, 60);
-                generatedDesc = (page.description || `Optimized Meta Description for ${page.url}. Visit us for more information.`).substring(0, 160);
+                // Advanced structural variation fallback
+                const titleBase = combinedKeywords || cleanTitle;
+
+                if (variation === 0) {
+                    generatedTitle = `${titleBase} - Superior ${intent} Results | ${brandName}`;
+                } else if (variation === 1) {
+                    generatedTitle = `Premium ${intent}: ${cleanH1 || titleBase} | ${brandName}`;
+                } else {
+                    generatedTitle = `${brandName} ${intent} - ${cleanH2.split(',')[0] || titleBase}`;
+                }
+
+                generatedDesc = `Our ${intent} expertise at ${brandName} focuses on ${cleanH1 || 'delivering value'}. ${cleanH2 ? 'We cover ' + cleanH2.split(',')[0] : 'Get started today'} with our professional strategies.`.substring(0, 160);
             }
 
             return {

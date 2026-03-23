@@ -75,11 +75,18 @@ export default function MetaContentPage() {
             });
             const data = await res.json();
 
+            if (!res.ok) {
+                showToast(data.error || 'AI Generation failed', 'error');
+                setRows(prev => prev.map(r => r.status === 'GENERATING' ? { ...r, status: 'ERROR' } : r));
+                return;
+            }
+
             if (data.results) {
                 setRows(prev => prev.map(r => {
                     const match = data.results.find((m: any) => m.url === r.url);
                     return match ? { ...match, status: 'DONE' } : r;
                 }));
+                showToast('AI Suggestions generated', 'success');
             }
         } catch (err) {
             showToast('AI Generation failed', 'error');

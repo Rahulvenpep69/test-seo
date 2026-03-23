@@ -21,11 +21,6 @@ export function generateTechnicalSeoPdf(url: string, analysisResult: any) {
         doc.setFont('helvetica', 'bold');
         doc.text('Seoptima', 32, 24);
 
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(255, 255, 255, 0.8);
-        doc.text('The Self-Healing SEO Platform', 32, 31);
-
         // Report Title & Date
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(11);

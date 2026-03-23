@@ -6,6 +6,8 @@ export interface MetaData {
     title: string;
     description: string;
     h1: string;
+    h2: string;
+    content: string;
     status: number;
 }
 
@@ -16,6 +18,18 @@ export class MetaAnalyzer {
         this.crawler = new Crawler(maxPages);
     }
 
+    private cleanText(text: string): string {
+        if (!text) return '';
+        // Remove common SVG/code junk identified by user
+        const junkWords = [/svg/gi, /icon/gi, /file/gi, /image/gi, /path/gi, /cls/gi, /div/gi, /span/gi, /script/gi, /style/gi, /service-svg/gi, /save-svg/gi, /speak-svg/gi, /sizzle-svg/gi, /sell-svg/gi, /marketingsell/gi];
+        let cleaned = text;
+        junkWords.forEach(regex => {
+            cleaned = cleaned.replace(regex, '');
+        });
+        // Remove extra spaces and hyphens at the end
+        return cleaned.replace(/\s+/g, ' ').replace(/[-\s]+$/, '').trim();
+    }
+
     async analyze(url: string): Promise<MetaData[]> {
         const crawlResults = await this.crawler.crawl(url);
         const analyzedData: MetaData[] = [];
@@ -24,15 +38,22 @@ export class MetaAnalyzer {
             if (result.status === 200 && result.html) {
                 const $ = cheerio.load(result.html);
 
-                const title = $('title').text().trim() || '';
-                const description = $('meta[name="description"]').attr('content')?.trim() || '';
-                const h1 = $('h1').first().text().trim() || '';
+                // Remove SVG elements before extracting text to prevent junk
+                $('svg, script, style, noscript, nav, footer').remove();
+
+                const title = this.cleanText($('title').text());
+                const description = this.cleanText($('meta[name="description"]').attr('content') || '');
+                const h1 = this.cleanText($('h1').first().text());
+                const h2 = $('h2').slice(0, 3).map((_, el) => $(el).text()).get().join(', ');
+                const content = this.cleanText($('body').text().substring(0, 1000));
 
                 analyzedData.push({
                     url: pageUrl,
                     title,
                     description,
                     h1,
+                    h2: this.cleanText(h2),
+                    content,
                     status: result.status
                 });
             } else {
@@ -41,6 +62,8 @@ export class MetaAnalyzer {
                     title: '',
                     description: '',
                     h1: '',
+                    h2: '',
+                    content: '',
                     status: result.status
                 });
             }
