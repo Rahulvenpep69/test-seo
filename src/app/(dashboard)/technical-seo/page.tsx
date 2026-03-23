@@ -163,7 +163,9 @@ function TechnicalSeoContent() {
 
     const [url, setUrl] = useState(resolveUrl);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [isPageAnalyzing, setIsPageAnalyzing] = useState(false);
     const [analysisResult, setAnalysisResult] = useState<any>(null);
+    const [crawlData, setCrawlData] = useState<Record<string, any>>({}); // Persistent storage of all page results
     const [selectedPage, setSelectedPage] = useState<string | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -190,7 +192,7 @@ function TechnicalSeoContent() {
     async function handleAnalyze(targetUrl?: string) {
         const urlToAnalyze = targetUrl || url;
         if (!urlToAnalyze) return;
-        setIsAnalyzing(true);
+        setIsPageAnalyzing(true);
         setErrorMsg(null);
         try {
             const res = await fetch('/api/analyze', {
@@ -200,25 +202,46 @@ function TechnicalSeoContent() {
             });
             const data = await res.json();
 
-            // If it's a sub-page analysis during a crawl, we merge/update the specific result
-            if (targetUrl && analysisResult?.isCrawl) {
-                setAnalysisResult({
-                    ...analysisResult,
-                    results: { ...analysisResult.results, [targetUrl]: data.results },
-                    technical: { ...analysisResult.technical, [targetUrl]: data.technical },
-                    stats: { ...analysisResult.stats, [targetUrl]: data.stats },
-                    structuredData: { ...analysisResult.structuredData, [targetUrl]: data.structuredData },
-                    currentPage: targetUrl
-                });
-            } else {
-                setAnalysisResult({ ...data, isCrawl: false });
-                if (!targetUrl) setSelectedPage(urlToAnalyze);
+            if (data.error) {
+                setErrorMsg(data.error);
+                return;
             }
+
+            const pageResult = {
+                results: data.results,
+                technical: data.technical,
+                structuredData: data.structuredData,
+                stats: data.stats,
+                overallScore: data.overallScore,
+                criticalCount: data.criticalCount,
+                warningCount: data.warningCount,
+                passCount: data.passCount,
+                score: data.overallScore,
+            };
+
+            // Update crawlData with the deep-analyzed page result
+            setCrawlData(prev => ({ ...prev, [urlToAnalyze]: pageResult }));
+
+            // Update the displayed analysis details
+            setAnalysisResult((prev: any) => prev ? {
+                ...prev,
+                results: data.results,
+                technical: data.technical,
+                stats: { ...prev.stats, ...data.stats },
+                structuredData: data.structuredData,
+                overallScore: data.overallScore,
+                criticalCount: data.criticalCount,
+                warningCount: data.warningCount,
+                passCount: data.passCount,
+                currentPage: urlToAnalyze,
+            } : { ...data, isCrawl: false });
+
+            if (!targetUrl) setSelectedPage(urlToAnalyze);
         } catch (error: any) {
             console.error('Analysis failed', error);
-            setErrorMsg(error?.message || 'Failed to analyze the website. It might be unreachable or blocking automated requests.');
+            setErrorMsg(error?.message || 'Failed to analyze the website.');
         } finally {
-            setIsAnalyzing(false);
+            setIsPageAnalyzing(false);
         }
     }
 
@@ -250,6 +273,22 @@ function TechnicalSeoContent() {
             const firstUrl = Object.keys(data.results)[0];
             const firstResult = data.results[firstUrl];
 
+            // Populate crawlData with all page results from the crawl
+            const newCrawlData: Record<string, any> = {};
+            for (const [pageUrl, pageData] of Object.entries(data.results) as [string, any][]) {
+                newCrawlData[pageUrl] = {
+                    results: pageData.results,
+                    technical: pageData.technical,
+                    structuredData: pageData.structuredData,
+                    stats: pageData.stats,
+                    score: pageData.score,
+                    criticalCount: pageData.criticalCount,
+                    warningCount: pageData.warningCount,
+                    passCount: pageData.passCount,
+                };
+            }
+            setCrawlData(newCrawlData);
+
             setAnalysisResult({
                 isCrawl: true,
                 allResults: data.results,
@@ -263,9 +302,15 @@ function TechnicalSeoContent() {
                 results: firstResult.results || {},
                 technical: firstResult.technical || {},
                 structuredData: firstResult.structuredData || [],
+                overallScore: firstResult.score,
+                criticalCount: firstResult.criticalCount,
+                warningCount: firstResult.warningCount,
+                passCount: firstResult.passCount,
                 currentPage: firstUrl
             });
             setSelectedPage(firstUrl);
+            // No auto-analyze - crawl already computed per-page results
+
         } catch (error: any) {
             console.error('Crawl failed', error);
             setErrorMsg(error?.message || 'Failed to analyze the website. It might be unreachable or blocking automated requests.');
@@ -424,39 +469,60 @@ function TechnicalSeoContent() {
                                 <h3 className="font-semibold px-2">Discovered Pages</h3>
                                 <div className="glass-card overflow-hidden divide-y divide-white/8">
                                     <div className="max-h-[600px] overflow-y-auto custom-scroll">
-                                        {(analysisResult.isCrawl ? Object.keys(analysisResult.allResults) : [(url || ''), ...(analysisResult.stats?.discoveredUrls || [])]).slice(0, 100).map((p: string, i: number) => (
-                                            <button
-                                                key={i}
-                                                onClick={() => {
-                                                    setSelectedPage(p);
-                                                    if (analysisResult.isCrawl && analysisResult.allResults[p]) {
-                                                        const pageData = analysisResult.allResults[p];
-                                                        setAnalysisResult({
-                                                            ...analysisResult,
-                                                            results: pageData.results || {},
-                                                            technical: pageData.technical || pageData,
-                                                            stats: {
-                                                                ...analysisResult.stats,
-                                                                ...pageData.stats,
-                                                                // Persist site-wide stats from the crawl top-level
-                                                                robots: analysisResult.site_stats?.robots,
-                                                                sitemap: analysisResult.site_stats?.sitemap
-                                                            },
-                                                            structuredData: pageData.structuredData || [],
-                                                            currentPage: p
-                                                        });
-                                                    } else {
-                                                        handleAnalyze(p);
-                                                    }
-                                                }}
-                                                className={cn(
-                                                    "w-full text-left p-3 text-xs truncate transition-colors hover:bg-white/5",
-                                                    selectedPage === p ? "bg-brand-500/5 text-brand-400 font-medium" : "text-muted-foreground"
-                                                )}
-                                            >
-                                                {p}
-                                            </button>
-                                        ))}
+                                        {/* Page count indicator */}
+                                        <div className="px-3 py-2 border-b border-white/8 text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                                            {analysisResult.isCrawl ? Object.keys(analysisResult.allResults || {}).length : (analysisResult.stats?.discoveredUrls?.length || 1)} Pages Discovered
+                                        </div>
+                                        {(analysisResult.isCrawl ? Object.keys(analysisResult.allResults || {}) : [(url || ''), ...(analysisResult.stats?.discoveredUrls || [])]).slice(0, 100).map((p: string, i: number) => {
+                                            const pageScore = crawlData[p]?.score;
+                                            const hasDeepAudit = crawlData[p]?.overallScore !== undefined;
+                                            return (
+                                                <button
+                                                    key={i}
+                                                    onClick={() => {
+                                                        setSelectedPage(p);
+                                                        // Load from crawlData (preserved across page selections)
+                                                        const pageData = crawlData[p] || analysisResult.allResults?.[p];
+                                                        if (pageData) {
+                                                            setAnalysisResult((prev: any) => ({
+                                                                ...prev,
+                                                                results: pageData.results || {},
+                                                                technical: pageData.technical || pageData,
+                                                                stats: {
+                                                                    ...prev.stats,
+                                                                    ...pageData.stats,
+                                                                    robots: prev.site_stats?.robots,
+                                                                    sitemap: prev.site_stats?.sitemap
+                                                                },
+                                                                structuredData: pageData.structuredData || [],
+                                                                overallScore: pageData.overallScore ?? pageData.score,
+                                                                criticalCount: pageData.criticalCount,
+                                                                warningCount: pageData.warningCount,
+                                                                passCount: pageData.passCount,
+                                                                currentPage: p
+                                                            }));
+                                                        } else {
+                                                            handleAnalyze(p);
+                                                        }
+                                                    }}
+                                                    className={cn(
+                                                        "w-full text-left px-3 py-2.5 text-xs transition-colors hover:bg-white/5 flex items-center gap-2",
+                                                        selectedPage === p ? "bg-brand-500/5 text-brand-400 font-medium border-l-2 border-brand-500" : "text-muted-foreground border-l-2 border-transparent"
+                                                    )}
+                                                >
+                                                    <span className="flex-1 truncate min-w-0">{p}</span>
+                                                    {pageScore !== undefined && (
+                                                        <span className={cn(
+                                                            "text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0",
+                                                            pageScore >= 80 ? "bg-green-500/20 text-green-400" :
+                                                                pageScore >= 50 ? "bg-yellow-500/20 text-yellow-400" :
+                                                                    "bg-red-500/20 text-red-400"
+                                                        )}>{pageScore}</span>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+
                                     </div>
                                 </div>
                             </div>
@@ -467,21 +533,23 @@ function TechnicalSeoContent() {
                                     </h3>
                                     <button
                                         onClick={() => selectedPage && handleAnalyze(selectedPage)}
-                                        disabled={isAnalyzing}
+                                        disabled={isPageAnalyzing}
                                         className="btn-ghost py-1 text-[10px] flex items-center gap-1.5"
                                     >
-                                        {isAnalyzing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3 text-brand-400" />}
+                                        {isPageAnalyzing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3 text-brand-400" />}
                                         Run Deep Audit
                                     </button>
                                 </div>
 
                                 {/* Summary Stats Bar */}
                                 {analysisResult.results && Object.keys(analysisResult.results).length > 0 && (() => {
-                                    const score = analysisResult.score !== undefined ? analysisResult.score : (() => {
-                                        const allStatuses = EXHAUSTIVE_CHECKS.map(c => analysisResult.results?.[c.id] || 'pending');
-                                        const passCount = allStatuses.filter(s => s === 'pass').length;
-                                        return Math.round((passCount / EXHAUSTIVE_CHECKS.length) * 100);
-                                    })();
+                                    const score = (analysisResult.overallScore !== undefined ? analysisResult.overallScore : analysisResult.score) !== undefined
+                                        ? (analysisResult.overallScore ?? analysisResult.score)
+                                        : (() => {
+                                            const allStatuses = EXHAUSTIVE_CHECKS.map(c => analysisResult.results?.[c.id] || 'pending');
+                                            const passCount = allStatuses.filter(s => s === 'pass').length;
+                                            return Math.round((passCount / EXHAUSTIVE_CHECKS.length) * 100);
+                                        })();
 
                                     const criticalCount = analysisResult.criticalCount !== undefined ? analysisResult.criticalCount :
                                         EXHAUSTIVE_CHECKS.map(c => analysisResult.results?.[c.id] || 'pending').filter(s => s === 'critical').length;

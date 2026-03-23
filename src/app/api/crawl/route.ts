@@ -74,10 +74,10 @@ export async function POST(req: Request) {
                 structuredData,
                 robots,
                 sitemap,
-                // Fallbacks for crawl
-                indexStatus: { indexed: true },
-                brokenLinksCount: 0,
-                custom404: { isCustom: true }
+                // Fallbacks for crawl - Avoid hardcoding 'pass'
+                indexStatus: { indexed: false }, // Will show as warning/critical if not checked
+                brokenLinksCount: -1,           // Will show as critical/warning
+                custom404: { isCustom: false }  // Will show as warning
             });
 
             const { score, criticalCount, warningCount, passCount } = calculateOverallScore(perPageResults);

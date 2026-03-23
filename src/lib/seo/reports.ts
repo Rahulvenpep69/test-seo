@@ -52,8 +52,9 @@ export function generateTechnicalSeoPdf(url: string, analysisResult: any) {
 
         // Health Score
         const score = Math.round(
-            analysisResult?.stats?.performance?.performanceScore ||
-            analysisResult?.stats?.score ||
+            analysisResult?.overallScore ??
+            analysisResult?.score ??
+            analysisResult?.stats?.performance?.performanceScore ??
             0
         );
 
