@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Sparkles,
@@ -19,10 +19,29 @@ import {
     Edit3,
     Star,
     ShieldCheck,
-    Trash2
+    Trash2,
+    Building2,
+    FileText,
+    HelpCircle,
+    Briefcase,
+    Package,
+    ListTree,
+    PenTool,
+    MapPin,
+    Image,
+    Check
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import axios from 'axios';
+
+interface OGData {
+    ogTitle: string;
+    ogDescription: string;
+    ogImage: string;
+    ogType: string;
+    ogSiteName: string;
+    ogUrl: string;
+}
 
 interface AISchema {
     id: string;
@@ -34,6 +53,19 @@ interface AISchema {
     updatedAt: string;
 }
 
+const SCHEMA_TYPE_OPTIONS = [
+    { id: 'Organization', label: 'Organization', icon: Building2, description: 'Company/brand identity', color: 'from-blue-500/20 to-blue-600/10 border-blue-500/30 text-blue-400' },
+    { id: 'WebSite', label: 'WebSite', icon: Globe, description: 'Website search & identity', color: 'from-cyan-500/20 to-cyan-600/10 border-cyan-500/30 text-cyan-400' },
+    { id: 'WebPage', label: 'WebPage', icon: FileText, description: 'Page metadata', color: 'from-indigo-500/20 to-indigo-600/10 border-indigo-500/30 text-indigo-400' },
+    { id: 'FAQPage', label: 'FAQ Page', icon: HelpCircle, description: 'Q&A content', color: 'from-green-500/20 to-green-600/10 border-green-500/30 text-green-400' },
+    { id: 'Service', label: 'Service', icon: Briefcase, description: 'Professional services', color: 'from-purple-500/20 to-purple-600/10 border-purple-500/30 text-purple-400' },
+    { id: 'Product', label: 'Product', icon: Package, description: 'Product details', color: 'from-orange-500/20 to-orange-600/10 border-orange-500/30 text-orange-400' },
+    { id: 'BreadcrumbList', label: 'Breadcrumbs', icon: ListTree, description: 'Navigation path', color: 'from-teal-500/20 to-teal-600/10 border-teal-500/30 text-teal-400' },
+    { id: 'BlogPosting', label: 'Blog Post', icon: PenTool, description: 'Article content', color: 'from-pink-500/20 to-pink-600/10 border-pink-500/30 text-pink-400' },
+    { id: 'LocalBusiness', label: 'Local Business', icon: MapPin, description: 'Local business info', color: 'from-amber-500/20 to-amber-600/10 border-amber-500/30 text-amber-400' },
+    { id: 'Review', label: 'Reviews', icon: Star, description: 'Ratings & reviews', color: 'from-yellow-500/20 to-yellow-600/10 border-yellow-500/30 text-yellow-400' },
+];
+
 export default function SchemaGeneratorPage() {
     const [url, setUrl] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
@@ -42,14 +74,50 @@ export default function SchemaGeneratorPage() {
     const [isEditing, setIsEditing] = useState(false);
     const [editedCode, setEditedCode] = useState('');
     const [statusMessage, setStatusMessage] = useState('');
+    const [selectedSchemaTypes, setSelectedSchemaTypes] = useState<string[]>([
+        'Organization', 'WebSite', 'WebPage', 'BreadcrumbList'
+    ]);
+
+    const toggleSchemaType = (typeId: string) => {
+        setSelectedSchemaTypes(prev =>
+            prev.includes(typeId) ? prev.filter(t => t !== typeId) : [...prev, typeId]
+        );
+    };
+
+    const selectAll = () => setSelectedSchemaTypes(SCHEMA_TYPE_OPTIONS.map(t => t.id));
+    const deselectAll = () => setSelectedSchemaTypes([]);
+
+    const getOGData = (schema: AISchema): OGData | null => {
+        // New format: { schema: {...}, ogData: {...} }
+        // Old format fallback: { @context:..., @graph:..., _ogData:... }
+        if (schema.generatedSchema?.ogData) return schema.generatedSchema.ogData;
+        if (schema.generatedSchema?._ogData) return schema.generatedSchema._ogData;
+        return null;
+    };
+
+    const getCleanSchema = (schema: AISchema) => {
+        if (!schema.generatedSchema) return {};
+        // New format: extract the clean schema from the "schema" key
+        if (schema.generatedSchema?.schema) return schema.generatedSchema.schema;
+        // Old format fallback: strip _ogData
+        const { _ogData, ogData, ...cleanSchema } = schema.generatedSchema;
+        return cleanSchema;
+    };
 
     const generateSchemas = async () => {
         if (!url || isGenerating) return;
+        if (selectedSchemaTypes.length === 0) {
+            setStatusMessage('Please select at least one schema type.');
+            return;
+        }
         setIsGenerating(true);
         setStatusMessage('Crawling website and analyzing content...');
 
         try {
-            const response = await axios.post('/api/schema/generate', { url });
+            const response = await axios.post('/api/schema/generate', {
+                url,
+                selectedSchemaTypes
+            });
             setSchemas(response.data.schemas);
             setStatusMessage(`Successfully generated ${response.data.count} schemas.`);
         } catch (error: any) {
@@ -62,7 +130,7 @@ export default function SchemaGeneratorPage() {
 
     const handleEdit = (schema: AISchema) => {
         setSelectedSchema(schema);
-        setEditedCode(JSON.stringify(schema.generatedSchema, null, 2));
+        setEditedCode(JSON.stringify(getCleanSchema(schema), null, 2));
         setIsEditing(true);
     };
 
@@ -92,6 +160,29 @@ export default function SchemaGeneratorPage() {
         } catch (error) {
             console.error('Delete failed', error);
         }
+    };
+
+    const applySchema = async () => {
+        if (!selectedSchema) return;
+        try {
+            const response = await axios.patch(`/api/schema/${selectedSchema.id}`, {
+                status: 'APPLIED'
+            });
+            setSchemas(schemas.map(s => s.id === selectedSchema.id ? response.data : s));
+            setSelectedSchema(response.data);
+            alert('Schema applied successfully!');
+        } catch (error) {
+            console.error('Apply failed', error);
+            alert('Failed to apply schema.');
+        }
+    };
+
+    const copyToClipboard = (schema: AISchema) => {
+        const cleanSchema = getCleanSchema(schema);
+        const scriptTag = `<script type="application/ld+json">\n${JSON.stringify(cleanSchema, null, 2)}\n</script>`;
+        navigator.clipboard.writeText(scriptTag);
+        setStatusMessage('Schema copied to clipboard!');
+        setTimeout(() => setStatusMessage(''), 3000);
     };
 
     return (
@@ -131,7 +222,7 @@ export default function SchemaGeneratorPage() {
                     </div>
                     <button
                         onClick={generateSchemas}
-                        disabled={isGenerating || !url}
+                        disabled={isGenerating || !url || selectedSchemaTypes.length === 0}
                         className="btn-primary px-8 h-14 text-lg font-semibold shadow-xl shadow-brand-500/30 whitespace-nowrap"
                     >
                         {isGenerating ? (
@@ -147,12 +238,74 @@ export default function SchemaGeneratorPage() {
                         )}
                     </button>
                 </div>
+
+                {/* Schema Type Checkboxes */}
+                <div className="mt-6">
+                    <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-brand-400" />
+                            Select Schema Types
+                        </h3>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={selectAll}
+                                className="text-[10px] font-bold uppercase tracking-wider text-brand-400 hover:text-brand-300 transition-colors px-2 py-1 rounded-md hover:bg-brand-500/10"
+                            >
+                                Select All
+                            </button>
+                            <span className="text-white/10">|</span>
+                            <button
+                                onClick={deselectAll}
+                                className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-white transition-colors px-2 py-1 rounded-md hover:bg-white/5"
+                            >
+                                Clear All
+                            </button>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                        {SCHEMA_TYPE_OPTIONS.map((type) => {
+                            const Icon = type.icon;
+                            const isSelected = selectedSchemaTypes.includes(type.id);
+                            return (
+                                <button
+                                    key={type.id}
+                                    onClick={() => toggleSchemaType(type.id)}
+                                    className={cn(
+                                        "relative flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all duration-200 text-center group cursor-pointer",
+                                        isSelected
+                                            ? `bg-gradient-to-b ${type.color} shadow-lg`
+                                            : "bg-white/[0.02] border-white/10 hover:border-white/20 hover:bg-white/5 text-muted-foreground"
+                                    )}
+                                >
+                                    {isSelected && (
+                                        <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-brand-500 flex items-center justify-center">
+                                            <Check className="w-2.5 h-2.5 text-white" />
+                                        </div>
+                                    )}
+                                    <Icon className={cn(
+                                        "w-5 h-5 transition-colors",
+                                        isSelected ? "" : "opacity-50 group-hover:opacity-75"
+                                    )} />
+                                    <span className="text-[11px] font-semibold leading-tight">{type.label}</span>
+                                    <span className={cn(
+                                        "text-[9px] leading-tight",
+                                        isSelected ? "opacity-70" : "opacity-40"
+                                    )}>{type.description}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <p className="mt-2 text-[10px] text-muted-foreground/60 italic">
+                        {selectedSchemaTypes.length} of {SCHEMA_TYPE_OPTIONS.length} types selected — only selected types will be generated
+                    </p>
+                </div>
+
                 {statusMessage && (
                     <p className={cn(
                         "mt-4 text-sm font-medium flex items-center gap-2",
-                        statusMessage.includes('Failed') ? "text-red-400" : "text-brand-400"
+                        statusMessage.includes('Failed') || statusMessage.includes('Please select') ? "text-red-400" : "text-brand-400"
                     )}>
-                        {statusMessage.includes('Failed') ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+                        {statusMessage.includes('Failed') || statusMessage.includes('Please select') ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
                         {statusMessage}
                     </p>
                 )}
@@ -253,18 +406,80 @@ export default function SchemaGeneratorPage() {
                                         >
                                             <Trash2 className="w-5 h-5" />
                                         </button>
-                                        <button className="btn-ghost px-4 py-2.5 text-sm gap-2">
+                                        <button
+                                            onClick={() => copyToClipboard(selectedSchema)}
+                                            className="btn-ghost px-4 py-2.5 text-sm gap-2"
+                                        >
                                             <Download className="w-4 h-4" />
-                                            Export
+                                            Copy
                                         </button>
                                         <button
                                             className="btn-primary px-5 py-2.5 text-sm gap-2"
-                                            onClick={() => alert('Schema applied to website!')}
+                                            onClick={applySchema}
                                         >
                                             <Zap className="w-4 h-4" />
                                             Apply Schema
                                         </button>
                                     </div>
+                                </div>
+
+                                {/* OG Content Preview */}
+                                {getOGData(selectedSchema) && (
+                                    <div className="border-b border-white/10 px-6 py-4">
+                                        <h4 className="text-[10px] font-bold text-brand-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                                            <Image className="w-3.5 h-3.5" />
+                                            Open Graph Content (from website)
+                                        </h4>
+                                        <div className="flex gap-4">
+                                            {getOGData(selectedSchema)?.ogImage && (
+                                                <div className="w-28 h-20 rounded-lg overflow-hidden border border-white/10 shrink-0 bg-black/20">
+                                                    <img
+                                                        src={getOGData(selectedSchema)!.ogImage}
+                                                        alt="OG Preview"
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                                    />
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0 space-y-1">
+                                                <p className="text-sm font-semibold text-white/90 truncate">
+                                                    {getOGData(selectedSchema)?.ogTitle || 'No OG Title'}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground line-clamp-2">
+                                                    {getOGData(selectedSchema)?.ogDescription || 'No OG Description'}
+                                                </p>
+                                                <div className="flex items-center gap-3 text-[10px] text-muted-foreground/60">
+                                                    {getOGData(selectedSchema)?.ogType && (
+                                                        <span className="px-1.5 py-0.5 bg-white/5 rounded border border-white/10">
+                                                            type: {getOGData(selectedSchema)!.ogType}
+                                                        </span>
+                                                    )}
+                                                    {getOGData(selectedSchema)?.ogSiteName && (
+                                                        <span className="px-1.5 py-0.5 bg-white/5 rounded border border-white/10">
+                                                            site: {getOGData(selectedSchema)!.ogSiteName}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Auto-Inject Banner */}
+                                <div className="bg-brand-500/10 border-b border-brand-500/20 px-6 py-3 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <Zap className="w-5 h-5 text-brand-400" />
+                                        <p className="text-sm text-brand-100/80">
+                                            Make schemas go live instantly without editing code.
+                                        </p>
+                                    </div>
+                                    <a
+                                        href="/website-integration"
+                                        className="text-xs font-bold text-brand-400 hover:text-brand-300 transition-colors uppercase tracking-wider relative group flex items-center gap-1"
+                                    >
+                                        Get WP Auto-Injector
+                                        <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                                    </a>
                                 </div>
 
                                 {/* Editor / Preview Toggle */}
@@ -313,90 +528,129 @@ export default function SchemaGeneratorPage() {
                                             />
                                         ) : (
                                             <div className="p-8 space-y-8">
+                                                {/* Schema Types in Graph */}
+                                                <div className="space-y-3">
+                                                    <h4 className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-2">
+                                                        <ShieldCheck className="w-3.5 h-3.5 text-brand-400" />
+                                                        Generated Schema Types
+                                                    </h4>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {(getCleanSchema(selectedSchema)?.['@graph'] || []).map((item: any, i: number) => (
+                                                            <span key={i} className="px-2.5 py-1 rounded-lg bg-brand-500/10 border border-brand-500/20 text-[11px] font-semibold text-brand-400">
+                                                                {item['@type']}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
                                                 {/* Dynamic preview of optimized features from @graph */}
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                    <div className="glass-card p-5 border-brand-500/20 bg-brand-500/5">
-                                                        <h4 className="text-xs font-bold text-brand-400 uppercase mb-3 flex items-center gap-2">
-                                                            <Zap className="w-3.5 h-3.5" />
-                                                            AEO Strategy (FAQs)
-                                                        </h4>
-                                                        <div className="space-y-4">
-                                                            {selectedSchema.generatedSchema?.["@graph"]?.find((e: any) => e["@type"] === "FAQPage")?.mainEntity?.slice(0, 5).map((faq: any, i: number) => (
-                                                                <div key={i} className="space-y-1">
-                                                                    <p className="text-sm font-semibold text-white/90">Q: {faq.name}</p>
-                                                                    <p className="text-xs text-muted-foreground">A: {faq.acceptedAnswer?.text}</p>
-                                                                </div>
-                                                            )) || (
-                                                                    <p className="text-xs text-muted-foreground italic">No FAQs detected in this schema.</p>
-                                                                )}
-                                                        </div>
-                                                    </div>
-                                                    <div className="glass-card p-5 border-yellow-500/20 bg-yellow-500/5">
-                                                        <h4 className="text-xs font-bold text-yellow-500 uppercase mb-3 flex items-center gap-2">
-                                                            <Sparkles className="w-3.5 h-3.5" />
-                                                            Trust & Social (Rich Results)
-                                                        </h4>
-                                                        {(() => {
-                                                            const graph = selectedSchema.generatedSchema?.["@graph"] || [];
-                                                            const rating = graph.find((e: any) => e.aggregateRating)?.aggregateRating ||
-                                                                graph.find((e: any) => e["@type"] === "LocalBusiness")?.aggregateRating;
-                                                            const reviews = graph.filter((e: any) => e["@type"] === "Review");
-
-                                                            return (
-                                                                <div className="space-y-3">
-                                                                    <div className="flex items-center gap-1 text-yellow-400">
-                                                                        {Array(5).fill(0).map((_, i) => (
-                                                                            <Star key={i} className="w-3 h-3 fill-current" />
-                                                                        ))}
-                                                                        <span className="text-xs font-bold ml-1">{rating?.ratingValue || "4.9"}/5</span>
+                                                    {/* FAQs Preview */}
+                                                    {getCleanSchema(selectedSchema)?.['@graph']?.find((e: any) => e['@type'] === 'FAQPage') && (
+                                                        <div className="glass-card p-5 border-brand-500/20 bg-brand-500/5">
+                                                            <h4 className="text-xs font-bold text-brand-400 uppercase mb-3 flex items-center gap-2">
+                                                                <Zap className="w-3.5 h-3.5" />
+                                                                AEO Strategy (FAQs)
+                                                            </h4>
+                                                            <div className="space-y-4">
+                                                                {getCleanSchema(selectedSchema)?.['@graph']?.find((e: any) => e['@type'] === 'FAQPage')?.mainEntity?.slice(0, 5).map((faq: any, i: number) => (
+                                                                    <div key={i} className="space-y-1">
+                                                                        <p className="text-sm font-semibold text-white/90">Q: {faq.name}</p>
+                                                                        <p className="text-xs text-muted-foreground">A: {faq.acceptedAnswer?.text}</p>
                                                                     </div>
-                                                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                                                                        Based on {rating?.reviewCount || reviews.length || "128"}+ verified reviews
-                                                                    </p>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Ratings Preview — only show if real data */}
+                                                    {(() => {
+                                                        const graph = getCleanSchema(selectedSchema)?.['@graph'] || [];
+                                                        const rating = graph.find((e: any) => e.aggregateRating)?.aggregateRating ||
+                                                            graph.find((e: any) => e['@type'] === 'LocalBusiness')?.aggregateRating;
+                                                        const reviews = graph.filter((e: any) => e['@type'] === 'Review');
+
+                                                        if (!rating && reviews.length === 0) return null;
+
+                                                        return (
+                                                            <div className="glass-card p-5 border-yellow-500/20 bg-yellow-500/5">
+                                                                <h4 className="text-xs font-bold text-yellow-500 uppercase mb-3 flex items-center gap-2">
+                                                                    <Sparkles className="w-3.5 h-3.5" />
+                                                                    Trust & Social (Rich Results)
+                                                                </h4>
+                                                                <div className="space-y-3">
+                                                                    {rating && (
+                                                                        <>
+                                                                            <div className="flex items-center gap-1 text-yellow-400">
+                                                                                {Array(5).fill(0).map((_, i) => (
+                                                                                    <Star key={i} className={cn(
+                                                                                        "w-3 h-3",
+                                                                                        i < Math.round(parseFloat(rating.ratingValue || '0')) ? "fill-current" : "opacity-30"
+                                                                                    )} />
+                                                                                ))}
+                                                                                <span className="text-xs font-bold ml-1">{rating.ratingValue}/5</span>
+                                                                            </div>
+                                                                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                                                                                Based on {rating.reviewCount || reviews.length} verified reviews
+                                                                            </p>
+                                                                        </>
+                                                                    )}
                                                                     <div className="pt-1 border-t border-white/5">
                                                                         <p className="text-[10px] text-brand-400 font-bold uppercase tracking-tighter">
                                                                             ✓ Optimized for Google Rich Snippets
                                                                         </p>
                                                                     </div>
                                                                 </div>
-                                                            );
-                                                        })()}
-                                                    </div>
-                                                    <div className="glass-card p-5 border-blue-500/20 bg-blue-500/5 md:col-span-2">
-                                                        <h4 className="text-xs font-bold text-blue-400 uppercase mb-3 flex items-center gap-2">
-                                                            <ShieldCheck className="w-3.5 h-3.5" />
-                                                            Organization & Local Details
-                                                        </h4>
-                                                        {(() => {
-                                                            const graph = selectedSchema.generatedSchema?.["@graph"] || [];
-                                                            const org = graph.find((e: any) => e["@type"] === "Organization");
-                                                            const local = graph.find((e: any) => e["@type"] === "LocalBusiness");
-                                                            const breadcrumbs = graph.find((e: any) => e["@type"] === "BreadcrumbList")?.itemListElement || [];
+                                                            </div>
+                                                        );
+                                                    })()}
 
-                                                            return (
+                                                    {/* Organization & Local Details */}
+                                                    {(() => {
+                                                        const graph = getCleanSchema(selectedSchema)?.['@graph'] || [];
+                                                        const org = graph.find((e: any) => e['@type'] === 'Organization');
+                                                        const local = graph.find((e: any) => e['@type'] === 'LocalBusiness');
+                                                        const breadcrumbs = graph.find((e: any) => e['@type'] === 'BreadcrumbList')?.itemListElement || [];
+
+                                                        if (!org && !local && breadcrumbs.length === 0) return null;
+
+                                                        return (
+                                                            <div className="glass-card p-5 border-blue-500/20 bg-blue-500/5 md:col-span-2">
+                                                                <h4 className="text-xs font-bold text-blue-400 uppercase mb-3 flex items-center gap-2">
+                                                                    <ShieldCheck className="w-3.5 h-3.5" />
+                                                                    Organization & Local Details
+                                                                </h4>
                                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                                    <div className="space-y-2">
-                                                                        <p className="text-xs text-white/80 font-medium">Business Identity</p>
-                                                                        <p className="text-[10px] text-muted-foreground">Name: {org?.name || local?.name}</p>
-                                                                        <p className="text-[10px] text-muted-foreground">Address: {local?.address?.streetAddress || "Detected via Content"}</p>
-                                                                        <p className="text-[10px] text-muted-foreground">City: {local?.address?.addressLocality || org?.areaServed?.name}</p>
-                                                                    </div>
-                                                                    <div className="space-y-2">
-                                                                        <p className="text-xs text-white/80 font-medium">Site structure</p>
-                                                                        <div className="flex items-center gap-1 overflow-x-auto pb-1 no-scrollbar">
-                                                                            {breadcrumbs.map((b: any, i: number) => (
-                                                                                <div key={i} className="flex items-center gap-1 shrink-0">
-                                                                                    {i > 0 && <span className="text-white/20">/</span>}
-                                                                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-muted-foreground">{b.name}</span>
-                                                                                </div>
-                                                                            ))}
+                                                                    {(org || local) && (
+                                                                        <div className="space-y-2">
+                                                                            <p className="text-xs text-white/80 font-medium">Business Identity</p>
+                                                                            <p className="text-[10px] text-muted-foreground">Name: {org?.name || local?.name}</p>
+                                                                            {local?.address?.streetAddress && (
+                                                                                <p className="text-[10px] text-muted-foreground">Address: {local.address.streetAddress}</p>
+                                                                            )}
+                                                                            {(local?.address?.addressLocality || org?.areaServed?.name) && (
+                                                                                <p className="text-[10px] text-muted-foreground">City: {local?.address?.addressLocality || org?.areaServed?.name}</p>
+                                                                            )}
                                                                         </div>
-                                                                        <p className="text-[9px] text-accent-400 font-bold uppercase tracking-widest mt-1">✓ BreadcrumbList Schema Active</p>
-                                                                    </div>
+                                                                    )}
+                                                                    {breadcrumbs.length > 0 && (
+                                                                        <div className="space-y-2">
+                                                                            <p className="text-xs text-white/80 font-medium">Site structure</p>
+                                                                            <div className="flex items-center gap-1 overflow-x-auto pb-1 no-scrollbar">
+                                                                                {breadcrumbs.map((b: any, i: number) => (
+                                                                                    <div key={i} className="flex items-center gap-1 shrink-0">
+                                                                                        {i > 0 && <span className="text-white/20">/</span>}
+                                                                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-muted-foreground">{b.name}</span>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                            <p className="text-[9px] text-accent-400 font-bold uppercase tracking-widest mt-1">✓ BreadcrumbList Schema Active</p>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
-                                                            );
-                                                        })()}
-                                                    </div>
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </div>
 
                                                 <div className="space-y-4">
@@ -405,7 +659,7 @@ export default function SchemaGeneratorPage() {
                                                         JSON-LD Structure
                                                     </h4>
                                                     <pre className="p-6 bg-black/60 rounded-2xl border border-white/5 text-xs text-muted-foreground overflow-x-auto">
-                                                        {JSON.stringify(selectedSchema.generatedSchema, null, 2)}
+                                                        {JSON.stringify(getCleanSchema(selectedSchema), null, 2)}
                                                     </pre>
                                                 </div>
                                             </div>

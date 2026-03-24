@@ -302,28 +302,39 @@ export default function WebsiteIntegrationPage() {
                                             <Zap className="w-4 h-4 text-blue-400" />
                                         </div>
                                         <div>
-                                            <h4 className="text-sm font-bold text-blue-400">Frontend JS Connectivity</h4>
+                                            <h4 className="text-sm font-bold text-blue-400">WordPress Auto-Injection Plugin</h4>
                                             <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-                                                Paste this snippet into your website's <code className="text-blue-400">&lt;head&gt;</code>. It allows the app to analyze and suggest optimizations directly from your browser.
+                                                For WordPress sites, the easiest way to connect is to download our Auto-Injection plugin. It securely injects the engine connections without you touching any code!
                                             </p>
                                         </div>
                                     </div>
 
-                                    <div className="relative group">
-                                        <pre className="bg-black p-3 rounded-lg text-[10px] text-zinc-400 overflow-x-auto border border-zinc-800 max-h-40">
-                                            {`<script src="${typeof window !== 'undefined' ? window.location.origin : ''}/seo-client.js" data-site-id="${wpConfig.bridgeSecret}"></script>`}
-                                        </pre>
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                navigator.clipboard.writeText(
-                                                    `<script src="${window.location.origin}/seo-client.js" data-site-id="${wpConfig.bridgeSecret}"></script>`
-                                                )
-                                            }
-                                            className="absolute top-2 right-2 p-1.5 bg-zinc-800 hover:bg-blue-500 text-white hover:text-black rounded-md opacity-0 group-hover:opacity-100 transition-all font-sans"
-                                        >
-                                            <Copy className="w-3 h-3" />
-                                        </button>
+                                    <a
+                                        href={`/api/integration/wordpress/plugin?siteId=${wpConfig.bridgeSecret}`}
+                                        className="w-full py-3 bg-blue-500 hover:bg-blue-400 text-black text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                                        download
+                                    >
+                                        <ArrowRight className="w-4 h-4" /> Download WordPress Plugin (.zip)
+                                    </a>
+
+                                    <div className="pt-4 mt-4 border-t border-blue-500/20">
+                                        <p className="text-[10px] text-zinc-500 mb-2 font-medium uppercase tracking-wider">Alternative: Manual JS Snippet</p>
+                                        <div className="relative group">
+                                            <pre className="bg-black p-3 rounded-lg text-[10px] text-zinc-400 overflow-x-auto border border-zinc-800 max-h-40">
+                                                {`<script src="${typeof window !== 'undefined' ? window.location.origin : ''}/seo-client.js" data-site-id="${wpConfig.bridgeSecret}"></script>`}
+                                            </pre>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    navigator.clipboard.writeText(
+                                                        `<script src="${window.location.origin}/seo-client.js" data-site-id="${wpConfig.bridgeSecret}"></script>`
+                                                    )
+                                                }
+                                                className="absolute top-2 right-2 p-1.5 bg-zinc-800 hover:bg-blue-500 text-white hover:text-black rounded-md opacity-0 group-hover:opacity-100 transition-all font-sans"
+                                            >
+                                                <Copy className="w-3 h-3" />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             )}

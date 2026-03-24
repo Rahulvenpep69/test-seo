@@ -34,42 +34,42 @@ export default function LandingPage() {
             </nav>
 
             {/* Hero */}
-            <section className="relative pt-32 pb-24 px-4">
+            <section className="relative pt-36 pb-28 px-4 overflow-hidden">
                 {/* Background */}
-                <div className="absolute inset-0 bg-grid-pattern opacity-30 pointer-events-none" />
-                <div className="absolute top-24 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-radial from-brand-600/20 via-accent-600/10 to-transparent rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute inset-0 bg-grid-pattern opacity-[0.15] pointer-events-none" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[600px] bg-gradient-radial from-brand-600/30 via-accent-600/10 to-transparent rounded-full blur-[100px] pointer-events-none" />
 
-                <div className="relative max-w-4xl mx-auto text-center">
-                    <div className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full bg-brand-500/10 border border-brand-500/20">
-                        <Sparkles className="w-3.5 h-3.5 text-brand-400" />
-                        <span className="text-sm text-brand-300 font-medium">Powered by GPT-4o</span>
+                <div className="relative max-w-5xl mx-auto text-center">
+                    <div className="inline-flex items-center gap-2 mb-8 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm transition-colors hover:bg-white/10 cursor-pointer">
+                        <Sparkles className="w-4 h-4 text-accent-400" />
+                        <span className="text-sm text-foreground/90 font-medium">Powered by Advanced AI</span>
                     </div>
 
-                    <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold font-display leading-tight">
-                        The{' '}
-                        <span className="gradient-text">Self-Healing SEO</span>
+                    <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-7xl font-extrabold font-display tracking-tight leading-[1.1]">
+                        AI-Powered <br className="hidden sm:block" />
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 via-accent-400 to-brand-400 animate-pulse-slow">Growth Platform</span>
                         <br />
-                        Platform
+                        for Modern Websites
                     </h1>
 
-                    <p className="mt-6 text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto">
-                        Seoptima automatically finds SEO issues, generates optimized content with AI,
-                        fixes problems on autopilot, and grows your website while you sleep.
+                    <p className="mt-8 text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
+                        Analyze, optimize, and scale your website with intelligent automation.
+                        Everything you need to improve performance, visibility, and conversions — in one place.
                     </p>
 
-                    <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-                        <Link href="/signup" className="btn-primary text-base py-3 px-6 gap-2">
-                            Start for free <ArrowRight className="w-4 h-4" />
+                    <div className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
+                        <Link href="/signup" className="flex items-center justify-center px-8 py-4 bg-foreground text-background hover:bg-foreground/90 rounded-xl font-medium transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:scale-[1.02] w-full sm:w-auto text-base">
+                            Start Free <ArrowRight className="w-5 h-5 ml-2" />
                         </Link>
-                        <Link href="/login" className="btn-secondary text-base py-3 px-6">
-                            View Dashboard Demo
+                        <Link href="/login" className="flex items-center justify-center px-8 py-4 text-foreground/80 hover:text-foreground bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-medium transition-all w-full sm:w-auto text-base">
+                            View Demo
                         </Link>
                     </div>
 
-                    <div className="mt-8 flex flex-wrap items-center justify-center gap-5 text-sm text-muted-foreground">
-                        {['No credit card required', 'Free plan forever', '50 AI credits included'].map((item) => (
-                            <span key={item} className="flex items-center gap-1.5">
-                                <Check className="w-3.5 h-3.5 text-green-400" />
+                    <div className="mt-14 flex flex-wrap items-center justify-center gap-x-8 gap-y-4 text-sm font-medium text-muted-foreground/80">
+                        {['No credit card required', 'Free plan available', 'Instant insights & automation'].map((item) => (
+                            <span key={item} className="flex items-center gap-2">
+                                <Check className="w-4 h-4 text-green-400" />
                                 {item}
                             </span>
                         ))}

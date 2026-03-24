@@ -10,14 +10,14 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { url, websiteId, businessInfo } = await req.json();
+        const { url, websiteId, businessInfo, selectedSchemaTypes } = await req.json();
 
         if (!url) {
             return NextResponse.json({ error: 'URL is required' }, { status: 400 });
         }
 
         const service = new AISchemaService(12); // Limit to top 12 pages for performance
-        const result = await service.generateSchemasForUrl(url, session.user.id, websiteId, businessInfo);
+        const result = await service.generateSchemasForUrl(url, session.user.id, websiteId, businessInfo, selectedSchemaTypes);
 
         return NextResponse.json({
             success: true,

@@ -1,6 +1,7 @@
-(function() {
-  const siteId = document.currentScript.getAttribute('data-site-id');
-  const apiUrl = window.location.origin;
+(function () {
+  const currentScript = document.currentScript;
+  const siteId = currentScript.getAttribute('data-site-id');
+  const apiUrl = new URL(currentScript.src).origin;
 
   console.log('[SEO Engine] Client connected. Site ID:', siteId);
 
@@ -13,7 +14,7 @@
       siteId: siteId
     };
 
-    fetch(`${apiUrl}/api/js/ping`, {
+    fetch(`${apiUrl}/api/integration/js/ping`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(pageData)
@@ -24,7 +25,7 @@
   const listenForOptimizations = () => {
     const checkInterval = setInterval(async () => {
       try {
-        const res = await fetch(`${apiUrl}/api/js/get-optimizations?siteId=${siteId}&url=${encodeURIComponent(window.location.href)}`);
+        const res = await fetch(`${apiUrl}/api/integration/js/get-optimizations?siteId=${siteId}&url=${encodeURIComponent(window.location.href)}`);
         if (res.ok) {
           const data = await res.json();
           if (data.title) document.title = data.title;
@@ -37,8 +38,21 @@
             }
             meta.content = data.description;
           }
+          // Inject schemas into the page
+          if (data.schemas && Array.isArray(data.schemas)) {
+            // cleanup old schemas
+            document.querySelectorAll('script[data-seo-engine="schema"]').forEach(el => el.remove());
+            data.schemas.forEach(schemaData => {
+              const script = document.createElement('script');
+              script.type = 'application/ld+json';
+              script.setAttribute('data-seo-engine', 'schema');
+              script.textContent = JSON.stringify(schemaData);
+              document.head.appendChild(script);
+            });
+            console.log('[SEO Engine] Schemas applied to page successfully.', data.schemas.length);
+          }
         }
-      } catch (e) {}
+      } catch (e) { }
     }, 5000);
   };
 
