@@ -3,6 +3,8 @@ import { robustFetch } from './fetch';
 import robotsParser from 'robots-parser';
 import * as htmlparser2 from 'htmlparser2';
 import * as domutils from 'domutils';
+import { extractImagesWithContext } from './images';
+
 
 export async function checkRobots(url: string) {
     try {
@@ -206,7 +208,8 @@ export async function analyzeTechnical(html: string, url: string) {
         noFollowExternalCount,
         hasAnalytics,
         isFriendlyUrl,
-        hasDuplicateTitle: title.length > 0 && html.split(`<title>${title}</title>`).length > 2
+        hasDuplicateTitle: title.length > 0 && html.split(`<title>${title}</title>`).length > 2,
+        allImages: extractImagesWithContext(html, url)
     };
 }
 

@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { fetchKeywordsFromGoogle, isGoogleSearchConfigured } from '@/lib/seo/google-search';
 import { fetchKeywordsFromSerpApi } from '@/lib/seo/serp-api';
+import { getOpenAiApiKey } from '@/lib/settings';
+import OpenAI from 'openai';
 
 export const maxDuration = 60;
 
@@ -107,10 +109,10 @@ export async function POST(req: Request) {
         }
 
         // --- 3. OpenAI Fallback (Contextual generation) ---
-        if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim() !== '') {
+        const apiKey = await getOpenAiApiKey();
+        if (apiKey) {
             console.log(`[Keywords] Using OpenAI fallback for query: "${query}"`);
-            const OpenAI = require('openai').default;
-            const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+            const openai = new OpenAI({ apiKey });
 
             const refinedSystemPrompt = `You are an expert SEO specialist and data analyst.
 The user will provide a seed keyword or a website URL.

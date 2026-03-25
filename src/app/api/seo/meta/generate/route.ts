@@ -3,8 +3,9 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import OpenAI from 'openai';
+import { getOpenAiApiKey, getGeminiApiKey } from '@/lib/settings';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Removed static initialization as we'll initialize per request with the DB key if needed
 
 export async function POST(req: NextRequest) {
     try {
@@ -110,20 +111,19 @@ Description: [clean meta description]`;
             let generatedTitle = '';
             let generatedDesc = '';
 
-            const apiKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
-
             const urlKeywords = page.url.split('/').filter(Boolean).pop()?.replace(/[-_.]/g, ' ') || '';
             const combinedKeywords = clean(`${urlKeywords} ${cleanH1} ${cleanH2.split(',')[0]}`).trim();
-
-            // Vary fallback structure based on index to ensure uniqueness
             const variation = index % 3;
 
-            if (apiKey) {
+            const geminiKey = await getGeminiApiKey();
+            const openAiKey = await getOpenAiApiKey();
+
+            if (geminiKey || openAiKey) {
                 try {
                     // Use Gemini if configured, otherwise fallback to OpenAI
-                    if (process.env.GEMINI_API_KEY) {
-                        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
-                        const response = await fetch(apiUrl, {
+                    if (geminiKey) {
+                        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+                        const response = await fetch(geminiUrl, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
@@ -141,7 +141,8 @@ Description: [clean meta description]`;
                         const parsed = JSON.parse(cleanText);
                         generatedTitle = parsed.title || '';
                         generatedDesc = parsed.description || '';
-                    } else if (process.env.OPENAI_API_KEY) {
+                    } else if (openAiKey) {
+                        const openai = new OpenAI({ apiKey: openAiKey });
                         const completion = await openai.chat.completions.create({
                             model: 'gpt-4o-mini',
                             messages: [

@@ -3,8 +3,9 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import OpenAI from 'openai';
+import { getOpenAiApiKey } from '@/lib/settings';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Removed static initialization as we'll initialize per request with the DB key if needed
 
 const prompts: Record<string, (input: string) => string> = {
     title: (input) => `Generate 3 SEO-optimized page titles for: "${input}". 
@@ -53,10 +54,12 @@ export async function POST(req: NextRequest) {
 
         const prompt = promptFn(input);
 
-        // Call OpenAI (falls back to mock if no API key)
+        // Call OpenAI
         let result: string;
+        const apiKey = await getOpenAiApiKey();
 
-        if (process.env.OPENAI_API_KEY) {
+        if (apiKey) {
+            const openai = new OpenAI({ apiKey });
             const completion = await openai.chat.completions.create({
                 model: 'gpt-4o-mini',
                 messages: [

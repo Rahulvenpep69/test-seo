@@ -1,9 +1,5 @@
-import OpenAI from 'openai';
-import * as cheerio from 'cheerio';
-import { Crawler } from './crawler';
 import { prisma } from '@/lib/prisma';
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { getOpenAiApiKey, getGeminiApiKey } from '../settings';
 
 export interface OGData {
     ogTitle: string;
@@ -227,8 +223,10 @@ OUTPUT (valid JSON only):
 {"pageType":"${pageType}","schemaType":"Graph","jsonLd":{"@context":"https://schema.org","@graph":[...]},"optimizedFor":["SEO","AEO","GEO"]}`;
 
         // Try OpenAI
-        if (process.env.OPENAI_API_KEY) {
+        const openAiKey = await getOpenAiApiKey();
+        if (openAiKey) {
             try {
+                const openai = new OpenAI({ apiKey: openAiKey });
                 const completion = await openai.chat.completions.create({
                     model: 'gpt-4o-mini',
                     messages: [
@@ -252,9 +250,10 @@ OUTPUT (valid JSON only):
         }
 
         // Try Gemini
-        if (process.env.GEMINI_API_KEY) {
+        const geminiKey = await getGeminiApiKey();
+        if (geminiKey) {
             try {
-                const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+                const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
                 const response = await fetch(geminiUrl, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },

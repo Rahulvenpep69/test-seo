@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useWebsite } from '@/context/website-context';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Code2, MapPin, FileText, Gauge, RotateCcw,
     CheckCircle2, AlertTriangle, PlusCircle, Upload,
     RefreshCw, Layers, ExternalLink, Search, Loader2,
-    ArrowRight, Info, Zap, ChevronRight, ChevronUp
+    ArrowRight, Info, Zap, ChevronRight, ChevronUp, Image as ImageIcon, Globe
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SEO_INSTRUCTIONS } from '@/lib/seo/instructions';
@@ -17,7 +17,7 @@ import { generateTechnicalSeoPdf } from '@/lib/seo/reports';
 import { Download, FileDown } from 'lucide-react';
 
 const tabs = [
-    { id: 'pages', label: 'All Pages', icon: FileText },
+    { id: 'all', label: 'All Pages', icon: Globe },
     { id: 'schema', label: 'Schema', icon: Code2 },
     { id: 'sitemap', label: 'Sitemap', icon: MapPin },
     { id: 'robots', label: 'Robots.txt', icon: FileText },
@@ -149,45 +149,67 @@ function CheckCard({ check, analysisResult }: { check: any; analysisResult: any 
     );
 }
 
-function TechnicalSeoContent() {
+function DashboardContent() {
+    const { activeWebsite, analysisResult, isAnalyzing, runAnalysis } = useWebsite();
     const searchParams = useSearchParams();
-    const { activeWebsite } = useWebsite();
-    const [activeTab, setActiveTab] = useState('pages');
+    const router = useRouter();
 
-    const resolveUrl = () => {
-        const qUrl = searchParams.get('url');
-        if (qUrl) return qUrl;
-        if (activeWebsite) return activeWebsite.domain || `https://${activeWebsite.subdomain}.antigravity.run`;
-        return '';
-    };
-
-    const [url, setUrl] = useState(resolveUrl);
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [isPageAnalyzing, setIsPageAnalyzing] = useState(false);
-    const [analysisResult, setAnalysisResult] = useState<any>(null);
+    // Set all as default tab
+    const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'all');
+    const [url, setUrl] = useState('');
     const [crawlData, setCrawlData] = useState<Record<string, any>>({}); // Persistent storage of all page results
     const [selectedPage, setSelectedPage] = useState<string | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const [isFetchingPosts, setIsFetchingPosts] = useState(false);
+
+    // Sync activeTab with URL param
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (tab && tabs.some(t => t.id === tab)) {
+            setActiveTab(tab);
+        } else if (!tab) {
+            setActiveTab('all'); // Default to all if no tab param
+        }
+    }, [searchParams]);
+
+    // Update URL param when activeTab changes
+    useEffect(() => {
+        const currentTab = searchParams.get('tab');
+        if (activeTab !== currentTab) {
+            const newSearchParams = new URLSearchParams(searchParams.toString());
+            newSearchParams.set('tab', activeTab);
+            router.replace(`?${newSearchParams.toString()}`, { shallow: true });
+        }
+    }, [activeTab, searchParams, router]);
 
     // When active website changes in context, update url
     useEffect(() => {
+        const resolveUrl = () => {
+            const qUrl = searchParams.get('url');
+            if (qUrl) return qUrl;
+            if (activeWebsite) return activeWebsite.domain || `https://${activeWebsite.subdomain}.antigravity.run`;
+            return '';
+        };
         const newUrl = resolveUrl();
         if (newUrl) setUrl(newUrl);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeWebsite?.id]);
+    }, [activeWebsite?.id, searchParams]);
 
     useEffect(() => {
         const queryUrl = searchParams.get('url');
         if (queryUrl) {
             setUrl(queryUrl);
-            handleAnalyze(queryUrl);
+            handleCrawlUrl(queryUrl);
         } else if (activeWebsite) {
             const websiteUrl = activeWebsite.domain || `https://${activeWebsite.subdomain}.antigravity.run`;
             setUrl(websiteUrl);
             handleCrawlUrl(websiteUrl);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchParams]);
+    }, [searchParams, activeWebsite?.id]);
+
+    const [isPageAnalyzing, setIsPageAnalyzing] = useState(false);
+    const [localAnalysisResult, setLocalAnalysisResult] = useState<any>(null);
 
     async function handleAnalyze(targetUrl?: string) {
         const urlToAnalyze = targetUrl || url;
@@ -222,19 +244,14 @@ function TechnicalSeoContent() {
             // Update crawlData with the deep-analyzed page result
             setCrawlData(prev => ({ ...prev, [urlToAnalyze]: pageResult }));
 
-            // Update the displayed analysis details
-            setAnalysisResult((prev: any) => prev ? {
-                ...prev,
-                results: data.results,
-                technical: data.technical,
-                stats: { ...prev.stats, ...data.stats },
-                structuredData: data.structuredData,
-                overallScore: data.overallScore,
-                criticalCount: data.criticalCount,
-                warningCount: data.warningCount,
-                passCount: data.passCount,
-                currentPage: urlToAnalyze,
-            } : { ...data, isCrawl: false });
+            // Preserve crawl context if we are already in a crawl session
+            setLocalAnalysisResult((prev: any) => ({
+                ...pageResult,
+                isCrawl: prev?.isCrawl || false,
+                allResults: prev?.allResults || {},
+                site_stats: prev?.site_stats,
+                currentPage: urlToAnalyze
+            }));
 
             if (!targetUrl) setSelectedPage(urlToAnalyze);
         } catch (error: any) {
@@ -248,80 +265,52 @@ function TechnicalSeoContent() {
     async function handleCrawlUrl(targetUrl?: string) {
         const crawlUrl = targetUrl || url;
         if (!crawlUrl) return;
-        setIsAnalyzing(true);
+        // We can use the context's isAnalyzing here if we want, or local state
         setErrorMsg(null);
-        setAnalysisResult(null);
         try {
             const res = await fetch('/api/crawl', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: crawlUrl, limit: 30 }),
+                body: JSON.stringify({ url: crawlUrl, limit: 10 }),
             });
             const data = await res.json();
 
             if (data.error) {
-                console.error('Crawl error:', data.error);
                 setErrorMsg(data.error);
                 return;
             }
 
-            if (!data.results || Object.keys(data.results).length === 0) {
-                setErrorMsg('Website returned no pages. It feels strongly protected by systems like Cloudflare or Datadome.');
-                return;
-            }
-
-            const firstUrl = Object.keys(data.results)[0];
-            const firstResult = data.results[firstUrl];
-
-            // Populate crawlData with all page results from the crawl
+            // Populate crawlData
             const newCrawlData: Record<string, any> = {};
             for (const [pageUrl, pageData] of Object.entries(data.results) as [string, any][]) {
-                newCrawlData[pageUrl] = {
-                    results: pageData.results,
-                    technical: pageData.technical,
-                    structuredData: pageData.structuredData,
-                    stats: pageData.stats,
-                    score: pageData.score,
-                    criticalCount: pageData.criticalCount,
-                    warningCount: pageData.warningCount,
-                    passCount: pageData.passCount,
-                };
+                newCrawlData[pageUrl] = pageData;
             }
             setCrawlData(newCrawlData);
 
-            setAnalysisResult({
+            const firstUrl = Object.keys(data.results)[0];
+            setSelectedPage(firstUrl);
+            setLocalAnalysisResult({
+                ...data.results[firstUrl],
                 isCrawl: true,
                 allResults: data.results,
                 site_stats: data.site_stats,
-                stats: {
-                    discoveredUrls: Object.keys(data.results),
-                    ...firstResult.stats,
-                    robots: data.site_stats?.robots,
-                    sitemap: data.site_stats?.sitemap
-                },
-                results: firstResult.results || {},
-                technical: firstResult.technical || {},
-                structuredData: firstResult.structuredData || [],
-                overallScore: firstResult.score,
-                criticalCount: firstResult.criticalCount,
-                warningCount: firstResult.warningCount,
-                passCount: firstResult.passCount,
                 currentPage: firstUrl
             });
-            setSelectedPage(firstUrl);
-            // No auto-analyze - crawl already computed per-page results
 
         } catch (error: any) {
-            console.error('Crawl failed', error);
-            setErrorMsg(error?.message || 'Failed to analyze the website. It might be unreachable or blocking automated requests.');
-        } finally {
-            setIsAnalyzing(false);
+            setErrorMsg(error?.message || 'Failed to crawl website.');
         }
     }
 
     async function handleCrawl() {
         handleCrawlUrl(url);
     }
+
+    // Use local result if available, otherwise context
+    const currentAnalysis = localAnalysisResult || analysisResult;
+    const isGlobalAnalyzing = isAnalyzing || isPageAnalyzing;
+
+
 
     return (
         <div className="space-y-6 animate-fade-in max-w-[1600px] mx-auto">
@@ -349,10 +338,10 @@ function TechnicalSeoContent() {
                     </div>
                     <button
                         onClick={() => handleCrawl()}
-                        disabled={isAnalyzing || !url}
+                        disabled={isGlobalAnalyzing || !url}
                         className="relative overflow-hidden group h-[54px] px-8 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:bg-white/10 disabled:cursor-not-allowed text-white font-bold shadow-xl shadow-brand-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3 min-w-[200px]"
                     >
-                        {isAnalyzing ? (
+                        {isGlobalAnalyzing ? (
                             <>
                                 <Loader2 className="w-5 h-5 animate-spin" />
                                 <span>Crawling Site...</span>
@@ -366,7 +355,7 @@ function TechnicalSeoContent() {
                         <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 translate-x-[-100%] group-hover:animate-shimmer" />
                     </button>
 
-                    {analysisResult && (
+                    {currentAnalysis && (
                         <div className="flex gap-2 shrink-0">
                             <button
                                 onClick={() => {
@@ -384,8 +373,8 @@ function TechnicalSeoContent() {
                                 onClick={() => {
                                     const targetUrl = selectedPage || url;
                                     if (targetUrl) {
-                                        if (analysisResult) {
-                                            generateTechnicalSeoPdf(targetUrl, analysisResult);
+                                        if (currentAnalysis) {
+                                            generateTechnicalSeoPdf(targetUrl, currentAnalysis);
                                         } else {
                                             window.open(`/report?url=${encodeURIComponent(targetUrl)}`, '_blank');
                                         }
@@ -412,7 +401,7 @@ function TechnicalSeoContent() {
                         <p className="text-red-400/80 text-sm leading-relaxed">{errorMsg}</p>
                     </div>
                 </div>
-            ) : (!isAnalyzing && !analysisResult && url && (
+            ) : (!isGlobalAnalyzing && !currentAnalysis && url && (
                 <div className="p-4 rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-400 text-sm animate-fade-in flex items-center gap-3">
                     <div className="w-2 h-2 rounded-full bg-brand-500 animate-pulse" />
                     Enter a URL and click Analyze to start the audit.
@@ -441,7 +430,7 @@ function TechnicalSeoContent() {
                 })}
             </div>
 
-            {!analysisResult && !isAnalyzing && (
+            {!currentAnalysis && !isGlobalAnalyzing && (
                 <div className="glass-card p-12 text-center">
                     <div className="bg-brand-500/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                         <Search className="w-8 h-8 text-brand-400" />
@@ -453,7 +442,7 @@ function TechnicalSeoContent() {
                 </div>
             )}
 
-            {isAnalyzing && (
+            {isGlobalAnalyzing && (
                 <div className="glass-card p-12 text-center">
                     <Loader2 className="w-12 h-12 text-brand-500 animate-spin mx-auto mb-4" />
                     <h3 className="text-xl font-semibold">Analyzing Site...</h3>
@@ -461,9 +450,9 @@ function TechnicalSeoContent() {
                 </div>
             )}
 
-            {analysisResult && (
+            {currentAnalysis && (
                 <div className="space-y-6">
-                    {activeTab === 'pages' && (
+                    {activeTab === 'all' && (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="md:col-span-1 space-y-4">
                                 <h3 className="font-semibold px-2">Discovered Pages</h3>
@@ -471,9 +460,9 @@ function TechnicalSeoContent() {
                                     <div className="max-h-[600px] overflow-y-auto custom-scroll">
                                         {/* Page count indicator */}
                                         <div className="px-3 py-2 border-b border-white/8 text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-                                            {analysisResult.isCrawl ? Object.keys(analysisResult.allResults || {}).length : (analysisResult.stats?.discoveredUrls?.length || 1)} Pages Discovered
+                                            {currentAnalysis.isCrawl ? Object.keys(currentAnalysis.allResults || {}).length : (currentAnalysis.stats?.discoveredUrls?.length || 1)} Pages Discovered
                                         </div>
-                                        {(analysisResult.isCrawl ? Object.keys(analysisResult.allResults || {}) : [(url || ''), ...(analysisResult.stats?.discoveredUrls || [])]).slice(0, 100).map((p: string, i: number) => {
+                                        {(currentAnalysis.isCrawl ? Object.keys(currentAnalysis.allResults || {}) : [(url || ''), ...(currentAnalysis.stats?.discoveredUrls || [])]).slice(0, 100).map((p: string, i: number) => {
                                             const pageScore = crawlData[p]?.score;
                                             const hasDeepAudit = crawlData[p]?.overallScore !== undefined;
                                             return (
@@ -482,25 +471,15 @@ function TechnicalSeoContent() {
                                                     onClick={() => {
                                                         setSelectedPage(p);
                                                         // Load from crawlData (preserved across page selections)
-                                                        const pageData = crawlData[p] || analysisResult.allResults?.[p];
+                                                        const pageData = crawlData[p] || currentAnalysis.allResults?.[p];
                                                         if (pageData) {
-                                                            setAnalysisResult((prev: any) => ({
-                                                                ...prev,
-                                                                results: pageData.results || {},
-                                                                technical: pageData.technical || pageData,
-                                                                stats: {
-                                                                    ...prev.stats,
-                                                                    ...pageData.stats,
-                                                                    robots: prev.site_stats?.robots,
-                                                                    sitemap: prev.site_stats?.sitemap
-                                                                },
-                                                                structuredData: pageData.structuredData || [],
-                                                                overallScore: pageData.overallScore ?? pageData.score,
-                                                                criticalCount: pageData.criticalCount,
-                                                                warningCount: pageData.warningCount,
-                                                                passCount: pageData.passCount,
+                                                            setLocalAnalysisResult({
+                                                                ...pageData,
+                                                                isCrawl: currentAnalysis.isCrawl,
+                                                                allResults: currentAnalysis.allResults,
+                                                                site_stats: currentAnalysis.site_stats,
                                                                 currentPage: p
-                                                            }));
+                                                            });
                                                         } else {
                                                             handleAnalyze(p);
                                                         }
@@ -533,32 +512,32 @@ function TechnicalSeoContent() {
                                     </h3>
                                     <button
                                         onClick={() => selectedPage && handleAnalyze(selectedPage)}
-                                        disabled={isPageAnalyzing}
+                                        disabled={isGlobalAnalyzing} // isPageAnalyzing is now part of isAnalyzing from context
                                         className="btn-ghost py-1 text-[10px] flex items-center gap-1.5"
                                     >
-                                        {isPageAnalyzing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3 text-brand-400" />}
+                                        {isGlobalAnalyzing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3 text-brand-400" />}
                                         Run Deep Audit
                                     </button>
                                 </div>
 
                                 {/* Summary Stats Bar */}
-                                {analysisResult.results && Object.keys(analysisResult.results).length > 0 && (() => {
-                                    const score = (analysisResult.overallScore !== undefined ? analysisResult.overallScore : analysisResult.score) !== undefined
-                                        ? (analysisResult.overallScore ?? analysisResult.score)
+                                {currentAnalysis.results && Object.keys(currentAnalysis.results).length > 0 && (() => {
+                                    const score = (currentAnalysis.overallScore !== undefined ? currentAnalysis.overallScore : currentAnalysis.score) !== undefined
+                                        ? (currentAnalysis.overallScore ?? currentAnalysis.score)
                                         : (() => {
-                                            const allStatuses = EXHAUSTIVE_CHECKS.map(c => analysisResult.results?.[c.id] || 'pending');
+                                            const allStatuses = EXHAUSTIVE_CHECKS.map(c => currentAnalysis.results?.[c.id] || 'pending');
                                             const passCount = allStatuses.filter(s => s === 'pass').length;
                                             return Math.round((passCount / EXHAUSTIVE_CHECKS.length) * 100);
                                         })();
 
-                                    const criticalCount = analysisResult.criticalCount !== undefined ? analysisResult.criticalCount :
-                                        EXHAUSTIVE_CHECKS.map(c => analysisResult.results?.[c.id] || 'pending').filter(s => s === 'critical').length;
+                                    const criticalCount = currentAnalysis.criticalCount !== undefined ? currentAnalysis.criticalCount :
+                                        EXHAUSTIVE_CHECKS.map(c => currentAnalysis.results?.[c.id] || 'pending').filter(s => s === 'critical').length;
 
-                                    const warningCount = analysisResult.warningCount !== undefined ? analysisResult.warningCount :
-                                        EXHAUSTIVE_CHECKS.map(c => analysisResult.results?.[c.id] || 'pending').filter(s => s === 'warning').length;
+                                    const warningCount = currentAnalysis.warningCount !== undefined ? currentAnalysis.warningCount :
+                                        EXHAUSTIVE_CHECKS.map(c => currentAnalysis.results?.[c.id] || 'pending').filter(s => s === 'warning').length;
 
-                                    const passCount = analysisResult.passCount !== undefined ? analysisResult.passCount :
-                                        EXHAUSTIVE_CHECKS.map(c => analysisResult.results?.[c.id] || 'pending').filter(s => s === 'pass').length;
+                                    const passCount = currentAnalysis.passCount !== undefined ? currentAnalysis.passCount :
+                                        EXHAUSTIVE_CHECKS.map(c => currentAnalysis.results?.[c.id] || 'pending').filter(s => s === 'pass').length;
 
                                     return (
                                         <div className="glass-card px-5 py-4 flex flex-col sm:flex-row items-center gap-4">
@@ -597,23 +576,23 @@ function TechnicalSeoContent() {
                                     );
                                 })()}
 
-                                {isAnalyzing && selectedPage === analysisResult.currentPage && (
+                                {isGlobalAnalyzing && selectedPage === currentAnalysis.currentPage && (
                                     <div className="glass-card p-8 text-center animate-pulse">
                                         <Loader2 className="w-8 h-8 text-brand-500 animate-spin mx-auto mb-2" />
                                         <p className="text-sm font-medium">Fetching real-time metrics...</p>
                                     </div>
                                 )}
 
-                                <div className={cn("grid grid-cols-1 gap-4 transition-opacity", isAnalyzing && selectedPage === analysisResult.currentPage && "opacity-50 pointer-events-none")}>
+                                <div className={cn("grid grid-cols-1 gap-4 transition-opacity", isGlobalAnalyzing && selectedPage === currentAnalysis.currentPage && "opacity-50 pointer-events-none")}>
                                     {[...EXHAUSTIVE_CHECKS]
                                         .sort((a, b) => {
                                             const order: Record<string, number> = { 'critical': 0, 'warning': 1, 'pass': 2, 'info': 3, 'pending': 4 };
-                                            const statusA = analysisResult.results?.[a.id] || 'pending';
-                                            const statusB = analysisResult.results?.[b.id] || 'pending';
+                                            const statusA = currentAnalysis.results?.[a.id] || 'pending';
+                                            const statusB = currentAnalysis.results?.[b.id] || 'pending';
                                             return (order[statusA] ?? 5) - (order[statusB] ?? 5);
                                         })
                                         .map((check) => (
-                                            <CheckCard key={check.id} check={check} analysisResult={analysisResult} />
+                                            <CheckCard key={check.id} check={check} analysisResult={currentAnalysis} />
                                         ))}
                                 </div>
                             </div>
@@ -625,11 +604,11 @@ function TechnicalSeoContent() {
                         <div className="space-y-4">
                             <div className="flex items-center justify-between px-2">
                                 <p className="text-sm text-muted-foreground">
-                                    {analysisResult.structuredData?.length || 0} JSON-LD schema blocks found
+                                    {currentAnalysis.structuredData?.length || 0} JSON-LD schema blocks found
                                 </p>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {analysisResult.structuredData?.map((schema: any, i: number) => (
+                                {currentAnalysis.structuredData?.map((schema: any, i: number) => (
                                     <motion.div
                                         key={i}
                                         initial={{ opacity: 0, y: 8 }}
@@ -646,7 +625,7 @@ function TechnicalSeoContent() {
                                         </div>
                                     </motion.div>
                                 ))}
-                                {(!analysisResult.structuredData || analysisResult.structuredData.length === 0) && (
+                                {(!currentAnalysis.structuredData || currentAnalysis.structuredData.length === 0) && (
                                     <div className="col-span-full py-12 text-center glass-card">
                                         <AlertTriangle className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
                                         <p className="text-sm">No structured data found on this page.</p>
@@ -661,29 +640,29 @@ function TechnicalSeoContent() {
                         <div className="glass-card p-6 space-y-4">
                             <h3 className="font-semibold">Sitemap Detection</h3>
                             <p className="text-xs text-muted-foreground font-mono bg-black/20 p-2 rounded">
-                                {analysisResult.stats?.sitemap?.url || 'Not detected'}
+                                {currentAnalysis.stats?.sitemap?.url || 'Not detected'}
                             </p>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
                                 <div className="glass-card p-4 text-center">
-                                    <p className={cn("text-2xl font-bold font-display", analysisResult.stats?.sitemap?.exists ? "text-green-400" : "text-red-400")}>
-                                        {analysisResult.stats?.sitemap?.exists ? 'Yes' : 'No'}
+                                    <p className={cn("text-2xl font-bold font-display", currentAnalysis.stats?.sitemap?.exists ? "text-green-400" : "text-red-400")}>
+                                        {currentAnalysis.stats?.sitemap?.exists ? 'Yes' : 'No'}
                                     </p>
                                     <p className="text-[10px] text-muted-foreground mt-1">Found in robots.txt / root</p>
                                 </div>
                                 <div className="glass-card p-4 text-center">
                                     <p className="text-2xl font-bold font-display text-brand-400">
-                                        {analysisResult.stats?.sitemap?.size ? `${(analysisResult.stats.sitemap.size / 1024).toFixed(1)} KB` : '-'}
+                                        {currentAnalysis.stats?.sitemap?.size ? `${(currentAnalysis.stats.sitemap.size / 1024).toFixed(1)} KB` : '-'}
                                     </p>
                                     <p className="text-[10px] text-muted-foreground mt-1">File Size</p>
                                 </div>
                                 <div className="glass-card p-4 text-center">
                                     <p className="text-2xl font-bold font-display text-green-400">
-                                        {analysisResult.stats?.discoveredUrls?.length || 0}
+                                        {currentAnalysis.stats?.discoveredUrls?.length || 0}
                                     </p>
                                     <p className="text-[10px] text-muted-foreground mt-1">URLs Found</p>
                                 </div>
                             </div>
-                            {!analysisResult.stats?.sitemap?.exists && (
+                            {!currentAnalysis.stats?.sitemap?.exists && (
                                 <div className="mt-4 p-3 rounded bg-red-500/5 border border-red-500/10">
                                     <p className="text-[10px] text-red-300">
                                         <span className="font-bold mr-1">Fix:</span> {SEO_INSTRUCTIONS.sitemap}
@@ -697,23 +676,23 @@ function TechnicalSeoContent() {
                         <div className="glass-card p-6 space-y-4">
                             <div className="flex items-center justify-between">
                                 <h3 className="font-semibold">Robots.txt Analysis</h3>
-                                <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded", analysisResult.stats?.robots?.exists ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400")}>
-                                    {analysisResult.stats?.robots?.exists ? 'Found' : 'Missing'}
+                                <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded", currentAnalysis.stats?.robots?.exists ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400")}>
+                                    {currentAnalysis.stats?.robots?.exists ? 'Found' : 'Missing'}
                                 </span>
                             </div>
                             <div className="bg-black/20 p-4 rounded-lg font-mono text-xs text-muted-foreground min-h-[100px]">
-                                {analysisResult.stats?.robots?.isAllowed ? '✅ Googlebot is allowed to crawl this URL.' : '❌ Googlebot is blocked.'}
+                                {currentAnalysis.stats?.robots?.isAllowed ? '✅ Googlebot is allowed to crawl this URL.' : '❌ Googlebot is blocked.'}
                                 <br /><br />
-                                {analysisResult.stats?.robots?.sitemaps?.length > 0 && (
+                                {currentAnalysis.stats?.robots?.sitemaps?.length > 0 && (
                                     <>
                                         Sitemaps declared:
                                         <ul className="list-disc pl-4 mt-1">
-                                            {analysisResult.stats.robots.sitemaps.map((s: string) => <li key={s}>{s}</li>)}
+                                            {currentAnalysis.stats.robots.sitemaps.map((s: string) => <li key={s}>{s}</li>)}
                                         </ul>
                                     </>
                                 )}
                             </div>
-                            {!analysisResult.stats?.robots?.exists && (
+                            {!currentAnalysis.stats?.robots?.exists && (
                                 <div className="p-3 rounded bg-red-500/5 border border-red-500/10">
                                     <p className="text-[10px] text-red-300">
                                         <span className="font-bold mr-1">Fix:</span> {SEO_INSTRUCTIONS.robots}
@@ -729,27 +708,27 @@ function TechnicalSeoContent() {
                                 <motion.div className="glass-card p-5 text-center flex flex-col justify-center">
                                     <div className={cn(
                                         "text-4xl font-bold font-display mx-auto mb-2 flex items-center justify-center w-24 h-24 rounded-full border-4 relative",
-                                        (analysisResult.stats?.performance?.performanceScore || 0) > 85 ? "text-green-400 border-green-400/20" : "text-yellow-400 border-yellow-400/20"
+                                        (currentAnalysis.stats?.performance?.performanceScore || 0) > 85 ? "text-green-400 border-green-400/20" : "text-yellow-400 border-yellow-400/20"
                                     )}>
-                                        {Math.round(analysisResult.stats?.performance?.performanceScore || 0)}
-                                        {analysisResult.stats?.performance?.isSimulated && (
+                                        {Math.round(currentAnalysis.stats?.performance?.performanceScore || 0)}
+                                        {currentAnalysis.stats?.performance?.isSimulated && (
                                             <div className="absolute -bottom-2 -right-2 bg-brand-500 text-[8px] px-1.5 py-0.5 rounded-full text-white font-bold border border-white/20 animate-pulse">
                                                 SIM
                                             </div>
                                         )}
                                     </div>
                                     <p className="font-medium text-sm">Performance Score</p>
-                                    {analysisResult.stats?.performance?.isSimulated && (
+                                    {currentAnalysis.stats?.performance?.isSimulated && (
                                         <p className="text-[10px] text-muted-foreground mt-2 opacity-60 italic">Simulated scoring for crawl</p>
                                     )}
                                 </motion.div>
 
                                 <div className="col-span-1 lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     {[
-                                        { id: 'lcp', label: 'LCP', value: analysisResult.stats?.performance?.largestContentfulPaint || 'N/A', target: '< 2.5s', desc: 'Largest Contentful Paint' },
-                                        { label: 'FCP', value: analysisResult.stats?.performance?.firstContentfulPaint || 'N/A', target: '< 1.8s', desc: 'First Contentful Paint' },
-                                        { id: 'cls', label: 'CLS', value: analysisResult.stats?.performance?.cumulativeLayoutShift || 'N/A', target: '< 0.1', desc: 'Cumulative Layout Shift' },
-                                        { label: 'TBT', value: analysisResult.stats?.performance?.totalBlockingTime || 'N/A', target: '< 200ms', desc: 'Total Blocking Time' },
+                                        { id: 'lcp', label: 'LCP', value: currentAnalysis.stats?.performance?.largestContentfulPaint || 'N/A', target: '< 2.5s', desc: 'Largest Contentful Paint' },
+                                        { label: 'FCP', value: currentAnalysis.stats?.performance?.firstContentfulPaint || 'N/A', target: '< 1.8s', desc: 'First Contentful Paint' },
+                                        { id: 'cls', label: 'CLS', value: currentAnalysis.stats?.performance?.cumulativeLayoutShift || 'N/A', target: '< 0.1', desc: 'Cumulative Layout Shift' },
+                                        { label: 'TBT', value: currentAnalysis.stats?.performance?.totalBlockingTime || 'N/A', target: '< 200ms', desc: 'Total Blocking Time' },
                                     ].map((m) => (
                                         <div key={m.label} className="glass-card p-4">
                                             <p className="text-lg font-bold font-display">{m.value}</p>
@@ -773,11 +752,11 @@ function TechnicalSeoContent() {
                             <div className="flex items-center justify-between px-2">
                                 <h3 className="font-semibold text-lg">Internal & External Links Report</h3>
                                 <p className="text-sm text-muted-foreground">
-                                    {analysisResult.stats?.scannedLinks || 0} unique links scanned ({analysisResult.stats?.brokenLinks || 0} broken)
+                                    {currentAnalysis.stats?.scannedLinks || 0} unique links scanned ({currentAnalysis.stats?.brokenLinks || 0} broken)
                                 </p>
                             </div>
                             <div className="glass-card divide-y divide-white/8 overflow-hidden">
-                                {analysisResult.stats?.allLinks?.map((link: any, i: number) => (
+                                {currentAnalysis.stats?.allLinks?.filter((link: any) => !link.ok).map((link: any, i: number) => (
                                     <div key={i} className="flex items-center gap-4 p-4 hover:bg-white/5 transition-colors">
                                         <span className={cn(
                                             "text-[10px] px-2 py-0.5 rounded border font-bold uppercase",
@@ -804,15 +783,17 @@ function TechnicalSeoContent() {
                                         )}
                                     </div>
                                 ))}
-                                {(!analysisResult.stats?.allLinks || analysisResult.stats?.allLinks.length === 0) && (
+                                {(!currentAnalysis.stats?.allLinks || currentAnalysis.stats?.allLinks.filter((link: any) => !link.ok).length === 0) && (
                                     <div className="p-12 text-center">
                                         <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-2" />
-                                        <p className="font-medium">No links found on this page.</p>
+                                        <p className="font-medium">No broken links found on this page.</p>
                                     </div>
                                 )}
                             </div>
                         </div>
                     )}
+
+
                 </div>
             )}
         </div>
@@ -821,8 +802,8 @@ function TechnicalSeoContent() {
 
 export default function TechnicalSeoPage() {
     return (
-        <Suspense fallback={<div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-brand-500" /></div>}>
-            <TechnicalSeoContent />
+        <Suspense fallback={<div className="p-20 text-center"><Loader2 className="w-10 h-10 animate-spin mx-auto text-brand-500" /><p className="mt-4 text-zinc-400">Loading Dashboard...</p></div>}>
+            <DashboardContent />
         </Suspense>
     );
 }
