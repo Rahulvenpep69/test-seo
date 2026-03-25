@@ -33,6 +33,7 @@ const navItems = [
                 icon: Settings,
                 subItems: [
                     { href: '/image-alt-tags', label: 'Image Alt Tags', icon: ImageIcon },
+                    { href: '/robots-generator', label: 'Robots.txt Generator', icon: Bot },
                 ]
             },
             { href: '/meta-content', label: 'Meta Optimizer', icon: FileText },
