@@ -33,29 +33,28 @@ function DashboardContent() {
     const [wpPosts, setWpPosts] = useState<any[]>([]);
     const [isFetchingPosts, setIsFetchingPosts] = useState(false);
 
+    const queryUrl = searchParams.get('url');
+
     // Sync url with context/params
     useEffect(() => {
         const resolveUrl = () => {
-            const qUrl = searchParams.get('url');
-            if (qUrl) return qUrl;
+            if (queryUrl) return queryUrl;
             if (activeWebsite) return activeWebsite.domain || `https://${activeWebsite.subdomain}.antigravity.run`;
             return '';
         };
         const newUrl = resolveUrl();
         if (newUrl) setUrl(newUrl);
-    }, [activeWebsite?.id, searchParams]);
+    }, [activeWebsite?.id, queryUrl]);
 
     // Initial analysis if URL is present
     useEffect(() => {
-        const queryUrl = searchParams.get('url');
         if (queryUrl) {
             handleAnalyze(queryUrl);
         } else if (activeWebsite) {
             const websiteUrl = activeWebsite.domain || `https://${activeWebsite.subdomain}.antigravity.run`;
             handleAnalyze(websiteUrl);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchParams, activeWebsite?.id]);
+    }, [queryUrl, activeWebsite?.id]);
 
     async function handleAnalyze(targetUrl?: string) {
         const urlToAnalyze = targetUrl || url;

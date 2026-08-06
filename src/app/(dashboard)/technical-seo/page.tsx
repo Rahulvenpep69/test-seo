@@ -210,6 +210,8 @@ function DashboardContent() {
     const [isFetchingPosts, setIsFetchingPosts] = useState(false);
     const [activeCategory, setActiveCategory] = useState<string>('all');
 
+    const queryUrl = searchParams.get('url');
+
     // Sync activeTab with URL param
     useEffect(() => {
         const tab = searchParams.get('tab');
@@ -233,18 +235,15 @@ function DashboardContent() {
     // When active website changes in context, update url
     useEffect(() => {
         const resolveUrl = () => {
-            const qUrl = searchParams.get('url');
-            if (qUrl) return qUrl;
+            if (queryUrl) return queryUrl;
             if (activeWebsite) return activeWebsite.domain || `https://${activeWebsite.subdomain}.antigravity.run`;
             return '';
         };
         const newUrl = resolveUrl();
         if (newUrl) setUrl(newUrl);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeWebsite?.id, searchParams]);
+    }, [activeWebsite?.id, queryUrl]);
 
     useEffect(() => {
-        const queryUrl = searchParams.get('url');
         if (queryUrl) {
             setUrl(queryUrl);
             handleCrawlUrl(queryUrl);
@@ -253,8 +252,7 @@ function DashboardContent() {
             setUrl(websiteUrl);
             handleCrawlUrl(websiteUrl);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchParams, activeWebsite?.id]);
+    }, [queryUrl, activeWebsite?.id]);
 
     const [isPageAnalyzing, setIsPageAnalyzing] = useState(false);
     const [localAnalysisResult, setLocalAnalysisResult] = useState<any>(null);

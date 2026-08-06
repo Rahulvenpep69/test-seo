@@ -89,15 +89,15 @@ function SeoContent() {
     const [scanUrl, setScanUrl] = useState(resolveUrl);
 
     // When active website changes, update scanUrl
+    const qUrl = searchParams.get('url');
+    const autoScan = searchParams.get('autoScan') === 'true';
+
     useEffect(() => {
         const newUrl = resolveUrl();
         if (newUrl) setScanUrl(newUrl);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeWebsite?.id]);
+    }, [activeWebsite?.id, qUrl]);
 
     useEffect(() => {
-        const qUrl = searchParams.get('url');
-        const autoScan = searchParams.get('autoScan') === 'true';
         if (autoScan && qUrl) {
             setScanUrl(qUrl);
             runAnalysis(qUrl);
@@ -105,8 +105,7 @@ function SeoContent() {
             // Auto-scan the active website when navigating to /seo if no results
             runAnalysis();
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchParams]);
+    }, [qUrl, autoScan, activeWebsite?.id]);
 
     // SYNC: When global analysis result changes, update local state
     useEffect(() => {
