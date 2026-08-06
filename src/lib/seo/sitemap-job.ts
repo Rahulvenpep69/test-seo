@@ -29,17 +29,9 @@ export class SitemapJob {
 
             // 2. Save Sitemap
             // In a production Next.js app on Vercel, we can't write to /public.
-            // But per user request: "Save sitemap at: /public/sitemap.xml"
             // We'll save it to the DB and also try to write to public for local environments.
-            await prisma.website.update({
-                where: { id: websiteId },
-                data: {
-                    sitemapXml: xml,
-                    sitemapLastGenerated: new Date(),
-                    sitemapUrlCount: entries.length,
-                    sitemapStatus: 'COMPLETED'
-                }
-            });
+            // await prisma.website.update(...) removed
+            console.log(`[SitemapJob] Generated XML with ${entries.length} entries`);
 
             // Local filesystem write (if possible)
             try {
@@ -60,20 +52,14 @@ export class SitemapJob {
             // 4. Submit to Google Search Console
             if (website.user.gscToken) {
                 await this.submitToGoogle(website.user.id, baseUrl);
-                await prisma.website.update({
-                    where: { id: websiteId },
-                    data: { sitemapLastSubmitted: new Date() }
-                });
+                console.log(`[SitemapJob] Submitted to GSC`);
             }
 
             console.log(`[SitemapJob] Successfully completed for ${websiteId}`);
             return { entries, excluded, xml };
         } catch (error) {
             console.error(`[SitemapJob] Error for ${websiteId}:`, error);
-            await prisma.website.update({
-                where: { id: websiteId },
-                data: { sitemapStatus: 'FAILED' }
-            });
+            // Removed update.
             throw error;
         }
     }

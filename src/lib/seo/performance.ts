@@ -1,9 +1,43 @@
 import axios from 'axios';
 
+// --- In-memory cache ---
+interface CacheEntry {
+    data: any;
+    expiresAt: number;
+}
+
+const resultCache = new Map<string, CacheEntry>();
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes per URL result
+
+// Quota backoff: if we get a 429, don't retry the API for QUOTA_BACKOFF_MS
+let quotaExceededUntil: number = 0;
+const QUOTA_BACKOFF_MS = 60 * 60 * 1000; // 1 hour
+
 // Using PageSpeed Insights API for real-time performance data
 // This avoids running Lighthouse locally which is resource intensive
 export async function getPerformanceMetrics(url: string) {
     const PAGESPEED_API_KEY = process.env.GOOGLE_CUSTOM_SEARCH_API_KEY;
+    const now = Date.now();
+
+    // Return cached result if still valid
+    const cached = resultCache.get(url);
+    if (cached && now < cached.expiresAt) {
+        return cached.data;
+    }
+
+    // Skip API call if quota is exhausted
+    if (now < quotaExceededUntil) {
+        return {
+            error: 'Quota Exceeded',
+            isSimulated: true,
+            performanceScore: 0,
+            firstContentfulPaint: 'Estimated',
+            largestContentfulPaint: 'Estimated',
+            cumulativeLayoutShift: 'Estimated',
+            totalBlockingTime: 'Estimated',
+            speedIndex: 'Estimated'
+        };
+    }
 
     try {
         const response = await axios.get(`https://www.googleapis.com/pagespeedonline/v5/runPagespeed`, {
@@ -17,7 +51,7 @@ export async function getPerformanceMetrics(url: string) {
 
         const data = response.data.lighthouseResult;
 
-        return {
+        const result = {
             performanceScore: Math.round((data?.categories?.performance?.score || 0) * 100),
             firstContentfulPaint: data?.audits?.['first-contentful-paint']?.displayValue || 'N/A',
             largestContentfulPaint: data?.audits?.['largest-contentful-paint']?.displayValue || 'N/A',
@@ -26,10 +60,25 @@ export async function getPerformanceMetrics(url: string) {
             speedIndex: data?.audits?.['speed-index']?.displayValue || 'N/A',
             isSimulated: false
         };
+
+        // Cache the successful result
+        resultCache.set(url, { data: result, expiresAt: now + CACHE_TTL_MS });
+
+        return result;
     } catch (error: any) {
-        console.error('Performance API Error:', error.response?.data || error.message);
-        const isQuotaError = error.response?.status === 429;
-        const isAuthError = error.response?.status === 403 || error.response?.status === 401;
+        const status = error.response?.status;
+        const isQuotaError = status === 429;
+        const isAuthError = status === 403 || status === 401;
+
+        if (isQuotaError) {
+            // Set the quota backoff so we skip the API for the next hour
+            quotaExceededUntil = now + QUOTA_BACKOFF_MS;
+            console.warn('[PageSpeed] Daily quota exceeded. Switching to heuristic fallback for 1 hour.');
+        } else if (isAuthError) {
+            console.error('[PageSpeed] API key is invalid or unauthorized.');
+        } else {
+            console.warn('[PageSpeed] API call failed (status:', status, '). Using heuristic fallback.');
+        }
 
         return {
             error: isAuthError ? 'API Key Invalid' : (isQuotaError ? 'Quota Exceeded' : 'API Timeout'),
@@ -91,7 +140,7 @@ export async function getChromeUXReport(url: string) {
         });
         return response.data;
     } catch (error) {
-        console.error('CrUX API Error:', error);
+        console.warn('[CrUX] Failed to fetch CrUX data, ignoring.');
         return { error: 'Failed to fetch CrUX data' };
     }
 }

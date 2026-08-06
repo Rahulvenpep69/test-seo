@@ -1,5 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { getOpenAiApiKey, getGeminiApiKey } from '../settings';
+import { Crawler } from './crawler';
+import * as cheerio from 'cheerio';
+import OpenAI from 'openai';
 
 export interface OGData {
     ogTitle: string;
@@ -61,7 +64,7 @@ export class AISchemaService {
                                 schema: schemaData.jsonLd,
                                 ogData: schemaData.ogData || null
                             } as any,
-                            optimizedFor: schemaData.optimizedFor || ["SEO", "JSON-LD"],
+                            optimizedFor: schemaData.optimizedFor || ["SEO", "AIO", "GEO", "SXO", "JSON-LD"],
                             status: "GENERATED"
                         }
                     });
@@ -188,6 +191,7 @@ RULES:
 - Return ONLY valid JSON, no markdown, no explanation
 - MUST include "@context": "https://schema.org" at top level
 - MUST generate ALL these types in @graph: ${typesToGenerate.join(', ')}
+- Optimize for AIO (AI Optimization), GEO (Generative Engine Optimization), and SXO (Search Experience Optimization) by providing ultra-clear, context-rich entity definitions and comprehensive answers to user intents.
 - Use ONLY real data from the content below — no fake/placeholder data
 - For FAQPage: generate 5+ "People Also Ask" style questions that real users search for regarding this topic, and provide detailed answers based on the content
 - For Product: use real product name, description, image, price if found
@@ -220,7 +224,7 @@ ${extractedPrice ? `Price Found: ${extractedPrice}` : ''}
 ${existingSchemas.length > 0 ? `Existing Schema on Page: ${JSON.stringify(existingSchemas).substring(0, 1000)}` : ''}
 
 OUTPUT (valid JSON only):
-{"pageType":"${pageType}","schemaType":"Graph","jsonLd":{"@context":"https://schema.org","@graph":[...]},"optimizedFor":["SEO","AEO","GEO"]}`;
+{"pageType":"${pageType}","schemaType":"Graph","jsonLd":{"@context":"https://schema.org","@graph":[...]},"optimizedFor":["SEO","AIO","GEO","SXO"]}`;
 
         // Try OpenAI
         const openAiKey = await getOpenAiApiKey();
@@ -665,7 +669,7 @@ OUTPUT (valid JSON only):
                 "@context": "https://schema.org",
                 "@graph": graph
             },
-            optimizedFor: ["SEO", "AEO", "GEO", "JSON-LD"],
+            optimizedFor: ["SEO", "AIO", "GEO", "SXO", "JSON-LD"],
             ogData
         };
     }

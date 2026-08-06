@@ -288,8 +288,8 @@ export default function DashboardPage() {
                         <div className="flex items-center justify-between mb-5">
                             <h2 className="font-semibold font-display">My Websites</h2>
                             <div className="flex items-center gap-4">
-                                <Link href="/onboarding" className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1">
-                                    Add new <ArrowUpRight className="w-3 h-3" />
+                                <Link href="/add-site" className="text-xs bg-brand-500 text-black px-4 py-2 rounded-lg font-bold hover:bg-brand-400 flex items-center gap-2 transition-colors">
+                                    ➕ Add New Site
                                 </Link>
                                 {activeWebsite && (
                                     <button

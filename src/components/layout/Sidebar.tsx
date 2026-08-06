@@ -18,6 +18,7 @@ const navItems = [
         group: 'Main',
         items: [
             { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+            { href: '/add-site', label: 'Website Integration', icon: Globe },
         ],
     },
     {
@@ -40,7 +41,6 @@ const navItems = [
             { href: '/meta-content', label: 'Meta Optimizer', icon: FileText },
             { href: '/search-console', label: 'Search Console', icon: Search },
             { href: '/schema-generator', label: 'Schema Generator', icon: Zap },
-            { href: '/website-integration', label: 'Website Integration', icon: Globe },
         ],
     },
 
