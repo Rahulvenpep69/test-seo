@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -14,9 +14,14 @@ export function DashboardHeader() {
     const { data: session } = useSession();
     const { refreshWebsites } = useWebsite();
     const router = useRouter();
-    const hour = new Date().getHours();
-    const greeting =
-        hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    const [greeting, setGreeting] = useState('Hello');
+
+    useEffect(() => {
+        const hour = new Date().getHours();
+        setGreeting(
+            hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+        );
+    }, []);
 
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [newSiteUrl, setNewSiteUrl] = useState('');
