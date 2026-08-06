@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useWebsite } from '@/context/website-context';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Globe, PenTool, LayoutTemplate, BriefcaseBusiness, Store, Zap, Sparkles, ArrowRight, ArrowLeft } from 'lucide-react';
 
@@ -30,6 +31,7 @@ const BUILDER_MODES = [
 
 export default function OnboardingPage() {
     const router = useRouter();
+    const { refreshWebsites } = useWebsite();
     const [step, setStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -56,6 +58,9 @@ export default function OnboardingPage() {
             });
 
             if (res.ok) {
+                // Refresh websites list
+                await refreshWebsites();
+
                 if (builderMode === 'AI') {
                     router.push('/builder/ai-wizard');
                 } else {

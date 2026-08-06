@@ -2,6 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useWebsite } from '@/context/website-context';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, CheckCircle2, Zap, Search, ShieldCheck, Globe, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -9,6 +10,7 @@ import { cn } from '@/lib/utils';
 function AnalyzingContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
+    const { refreshWebsites } = useWebsite();
     const [status, setStatus] = useState({
         scanned: false,
         crawled: false,
@@ -39,6 +41,8 @@ function AnalyzingContent() {
                 if (crawlRes.ok) setStatus(s => ({ ...s, crawled: true }));
 
                 setStatus(s => ({ ...s, saved: true }));
+                // Refresh websites list so it shows up in switcher immediately
+                refreshWebsites();
             } catch (error) {
                 console.error('In-depth analysis failed', error);
             }

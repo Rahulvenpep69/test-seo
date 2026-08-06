@@ -61,6 +61,14 @@ export async function POST(req: NextRequest) {
             },
         });
 
+        // 2. Trigger Automatic Sitemap Generation (Asynchronously)
+        if (url) {
+            import('@/lib/seo/sitemap-job').then(({ SitemapJob }) => {
+                const job = new SitemapJob();
+                job.runForWebsite(website.id).catch(e => console.error('[WEBSITE CREATE SITEMAP ERROR]', e));
+            });
+        }
+
         return NextResponse.json({
             message: 'Website created successfully',
             websiteId: website.id,

@@ -65,6 +65,23 @@ export async function POST(req: Request) {
             checkAssetCaching(targetUrl, html)
         ]);
 
+        // Extract security headers from a HEAD request
+        let securityHeaders: Record<string, any> = {};
+        try {
+            const headRes = await fetch(targetUrl, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
+            securityHeaders = {
+                contentEncoding: headRes.headers.get('content-encoding') || '',
+                cacheControl: headRes.headers.get('cache-control') || '',
+                xCacheStatus: headRes.headers.get('x-cache') || headRes.headers.get('x-cache-status') || '',
+                xServedBy: headRes.headers.get('x-served-by') || headRes.headers.get('via') || '',
+                cfRay: headRes.headers.get('cf-ray') || '',
+                xAmzCfPop: headRes.headers.get('x-amz-cf-pop') || '',
+                hsts: headRes.headers.get('strict-transport-security') || '',
+                server: headRes.headers.get('server') || '',
+                http2: (headRes as any).httpVersion === '2.0' || false,
+            };
+        } catch (_) { /* ignore – security headers are best-effort */ }
+
         const authority = await calculateAuthorityScoring(targetUrl, indexStatus);
 
         // 3. Compile Results matching the 32 exhausting checks in the UI
@@ -96,7 +113,8 @@ export async function POST(req: Request) {
             brokenLinksCount: brokenLinks.brokenLinks,
             structuredData,
             assets,
-            custom404
+            custom404,
+            securityHeaders
         });
 
         const { score: overallScore, passCount, criticalCount, warningCount } = calculateOverallScore(results);
@@ -111,6 +129,7 @@ export async function POST(req: Request) {
             performance: perfData,
             authority: authority,
             structuredDataCount: structuredData.length,
+            securityHeaders,
             robots: robots,
             sitemap: sitemap,
             custom404: custom404

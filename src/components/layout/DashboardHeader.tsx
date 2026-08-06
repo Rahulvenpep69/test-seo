@@ -7,10 +7,12 @@ import { useSession } from 'next-auth/react';
 import { Bell, Search, Plus, X, Globe, Type } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { WebsiteSwitcher } from './WebsiteSwitcher';
+import { useWebsite } from '@/context/website-context';
 import { NotificationsDropdown } from './NotificationsDropdown';
 
 export function DashboardHeader() {
     const { data: session } = useSession();
+    const { refreshWebsites } = useWebsite();
     const router = useRouter();
     const hour = new Date().getHours();
     const greeting =
@@ -38,6 +40,9 @@ export function DashboardHeader() {
             });
             const data = await res.json();
             if (res.ok && data.websiteId) {
+                // Refresh websites list in context
+                await refreshWebsites();
+
                 router.push(`/analyzing?url=${encodeURIComponent(newSiteUrl)}&id=${data.websiteId}`);
                 setIsAddOpen(false);
             } else {

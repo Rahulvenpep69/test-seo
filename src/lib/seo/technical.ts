@@ -160,6 +160,73 @@ export async function analyzeTechnical(html: string, url: string) {
         }
     });
 
+    // OG / Social tags
+    const ogTitleNode = domutils.findOne((ele) => ele.name === 'meta' && ele.attribs.property === 'og:title', dom.children);
+    const ogDescNode = domutils.findOne((ele) => ele.name === 'meta' && ele.attribs.property === 'og:description', dom.children);
+    const ogImageNode = domutils.findOne((ele) => ele.name === 'meta' && ele.attribs.property === 'og:image', dom.children);
+    const ogUrlNode = domutils.findOne((ele) => ele.name === 'meta' && ele.attribs.property === 'og:url', dom.children);
+    const twitterCardNode = domutils.findOne((ele) => ele.name === 'meta' && (ele.attribs.name === 'twitter:card' || ele.attribs.property === 'twitter:card'), dom.children);
+
+    // Viewport
+    const viewportNode = domutils.findOne((ele) => ele.name === 'meta' && ele.attribs.name === 'viewport', dom.children);
+
+    // Doctype
+    const hasDoctype = html.trim().toLowerCase().startsWith('<!doctype');
+
+    // Noindex
+    const noindexNode = domutils.findOne((ele) => ele.name === 'meta' && ele.attribs.name === 'robots' && (ele.attribs.content || '').toLowerCase().includes('noindex'), dom.children);
+
+    // Meta refresh
+    const metaRefreshNode = domutils.findOne((ele) => ele.name === 'meta' && ele.attribs['http-equiv']?.toLowerCase() === 'refresh', dom.children);
+
+    // Flash
+    const hasFlash = html.includes('<object') && (html.includes('.swf') || html.includes('application/x-shockwave-flash'));
+
+    // Nested tables
+    const tableNodes = domutils.findAll((ele) => ele.name === 'table', dom.children);
+    const hasNestedTables = tableNodes.some(t => domutils.findAll((ele) => ele.name === 'table', t.children).length > 0);
+
+    // Frameset
+    const hasFrameset = html.toLowerCase().includes('<frameset');
+
+    // Script & link nodes for render-blocking detection
+    const renderBlockingScripts = domutils.findAll(
+        (ele) => ele.name === 'script' && !ele.attribs.async && !ele.attribs.defer && !ele.attribs.type?.includes('module'),
+        dom.children
+    ).filter(s => s.attribs.src);
+
+    const renderBlockingLinks = domutils.findAll(
+        (ele) => ele.name === 'link' && ele.attribs.rel === 'stylesheet' && !ele.attribs.media,
+        dom.children
+    );
+
+    // JS minification hint
+    const scriptNodes = domutils.findAll((ele) => ele.name === 'script' && !!ele.attribs.src, dom.children);
+    const hasMinifiedJs = scriptNodes.some(s => (s.attribs.src || '').includes('.min.'));
+
+    // DOM size (count all elements)
+    const allElements = domutils.findAll(() => true, dom.children);
+
+    // Image width/height (aspect ratio)
+    const imagesWithoutDimensions = imgNodes.filter(img => !img.attribs.width || !img.attribs.height);
+
+    // Mixed content
+    const hasMixedContent = url.startsWith('https://') &&
+        (html.match(/src=["']http:\/\//g) || html.match(/href=["']http:\/\//g)) !== null;
+
+    // Unsafe cross-origin links
+    const unsafeCrossOriginLinks = aNodes.filter(a =>
+        a.attribs.target === '_blank' && !(a.attribs.rel || '').includes('noopener')
+    );
+
+    // Plaintext emails
+    const emailMatches = html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+    const plaintextEmails = emailMatches.filter(e => !e.endsWith('.png') && !e.endsWith('.jpg')).slice(0, 5);
+
+    // Ads.txt reference (light check — just see if domain in robots/sitemap)
+    const adsTextHint = html.includes('ads.txt');
+
+    // Basic check vars
     const hasAnalytics = html.includes('google-analytics') || html.includes('gtag') || html.includes('G-');
     const isFriendlyUrl = !url.includes('?') && !url.includes('=');
 
@@ -175,11 +242,14 @@ export async function analyzeTechnical(html: string, url: string) {
         totalImages: imgNodes.length,
         imagesWithoutAlt: imgNodes.filter(img => !img.attribs.alt).length,
         imagesWithoutAltDetails: imgNodes.filter(img => !img.attribs.alt).map(img => img.attribs.src || 'Unknown source').slice(0, 20),
+        imagesWithoutDimensions: imagesWithoutDimensions.length,
         responsiveImages,
         modernFormatImages,
         language: htmlNode?.attribs.lang || '',
+        hasLangAttr: !!(htmlNode?.attribs.lang),
         hasFavicon: !!faviconNode,
         charset: charsetNode?.attribs.charset || charsetNode?.attribs.content || '',
+        hasCharset: !!charsetNode,
         inlineCssCount: inlineCssNodes.length,
         inlineCssDetails: inlineCssNodes.map(n => {
             if (n.name === 'style') {
@@ -209,7 +279,34 @@ export async function analyzeTechnical(html: string, url: string) {
         hasAnalytics,
         isFriendlyUrl,
         hasDuplicateTitle: title.length > 0 && html.split(`<title>${title}</title>`).length > 2,
-        allImages: extractImagesWithContext(html, url)
+        allImages: extractImagesWithContext(html, url),
+
+        // New fields
+        hasOgTitle: !!ogTitleNode,
+        hasOgDesc: !!ogDescNode,
+        hasOgImage: !!ogImageNode,
+        hasOgUrl: !!ogUrlNode,
+        hasTwitterCard: !!twitterCardNode,
+        hasViewport: !!viewportNode,
+        viewportContent: viewportNode?.attribs.content || '',
+        hasDoctype,
+        hasNoindex: !!noindexNode,
+        hasMetaRefresh: !!metaRefreshNode,
+        hasFlash,
+        hasNestedTables,
+        hasFrameset,
+        renderBlockingScriptsCount: renderBlockingScripts.length,
+        renderBlockingLinksCount: renderBlockingLinks.length,
+        hasMinifiedJs,
+        domElementCount: allElements.length,
+        scriptCount: scriptNodes.length,
+        hasMixedContent,
+        unsafeCrossOriginCount: unsafeCrossOriginLinks.length,
+        plaintextEmails,
+        hasAdsText: adsTextHint,
+        mediaQueryCount: (html.match(/@media/g) || []).length,
+        hasCanonicalTag: !!canonicalNode,
+        hasGzip: false, // will be set by header check in scoring
     };
 }
 

@@ -1,20 +1,26 @@
 import { google } from 'googleapis';
+import { prisma } from '../prisma';
 
-const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    `${process.env.NEXT_PUBLIC_APP_URL}/api/gsc/callback`
-);
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const REDIRECT_URI = `${process.env.NEXT_PUBLIC_APP_URL}/api/gsc/callback`;
 
-export const searchConsole = google.searchconsole('v1');
+export function createOAuth2Client() {
+    return new google.auth.OAuth2(
+        GOOGLE_CLIENT_ID,
+        GOOGLE_CLIENT_SECRET,
+        REDIRECT_URI
+    );
+}
 
 export function getAuthUrl() {
+    const client = createOAuth2Client();
     const scopes = [
         'https://www.googleapis.com/auth/webmasters.readonly',
         'https://www.googleapis.com/auth/webmasters',
     ];
 
-    return oauth2Client.generateAuthUrl({
+    return client.generateAuthUrl({
         access_type: 'offline',
         scope: scopes,
         prompt: 'consent',
@@ -22,12 +28,46 @@ export function getAuthUrl() {
 }
 
 export async function getTokens(code: string) {
-    const { tokens } = await oauth2Client.getToken(code);
+    const client = createOAuth2Client();
+    const { tokens } = await client.getToken(code);
     return tokens;
 }
 
-export function setCredentials(tokens: any) {
-    oauth2Client.setCredentials(tokens);
-}
+export async function getAuthorizedClient(userId: string) {
+    const gscToken = await prisma.gscToken.findUnique({
+        where: { userId },
+    });
 
-export default oauth2Client;
+    if (!gscToken) {
+        throw new Error('GSC not connected');
+    }
+
+    const client = createOAuth2Client();
+    client.setCredentials({
+        access_token: gscToken.accessToken,
+        refresh_token: gscToken.refreshToken,
+        expiry_date: Number(gscToken.expiryDate),
+    });
+
+    // Handle automatic refresh
+    client.on('tokens', async (tokens) => {
+        if (tokens.access_token) {
+            const data: any = {
+                accessToken: tokens.access_token,
+            };
+            if (tokens.expiry_date) {
+                data.expiryDate = BigInt(tokens.expiry_date);
+            }
+            if (tokens.refresh_token) {
+                data.refreshToken = tokens.refresh_token;
+            }
+
+            await prisma.gscToken.update({
+                where: { userId },
+                data
+            });
+        }
+    });
+
+    return google.searchconsole({ version: 'v1', auth: client });
+}

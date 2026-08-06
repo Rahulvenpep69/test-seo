@@ -12,11 +12,13 @@ export class Crawler {
     private visited: Set<string> = new Set();
     private queue: string[] = [];
     private maxPages: number;
+    private maxDepth: number;
     private domain: string = '';
     private robots: any = null;
 
-    constructor(maxPages: number = 1000) {
+    constructor(maxPages: number = 1000, maxDepth: number = 3) {
         this.maxPages = maxPages;
+        this.maxDepth = maxDepth;
     }
 
     private async fetchRobots(baseUrl: string) {
@@ -76,14 +78,15 @@ export class Crawler {
         }
 
         const initialNormalized = this.normalizeUrlForVisited(normalizedUrl);
-        this.queue.push(normalizedUrl);
+        const queue: { url: string; depth: number }[] = [{ url: normalizedUrl, depth: 0 }];
         await this.fetchRobots(normalizedUrl);
 
-        while (this.queue.length > 0 && this.visited.size < this.maxPages) {
-            const url = this.queue.shift()!;
+        while (queue.length > 0 && this.visited.size < this.maxPages) {
+            const { url, depth } = queue.shift()!;
             const normalizedForVisited = this.normalizeUrlForVisited(url);
 
             if (this.visited.has(normalizedForVisited)) continue;
+            if (depth > this.maxDepth) continue;
 
             if (!this.isAllowed(url)) {
                 console.log(`Blocked by robots.txt: ${url}`);
@@ -106,26 +109,29 @@ export class Crawler {
                 results[url] = { url: effectiveUrl, html, status };
 
                 const $ = cheerio.load(html);
-                $('a[href]').each((_, el) => {
-                    const href = $(el).attr('href');
-                    if (!href) return;
 
-                    try {
-                        const absoluteUrl = new URL(href, effectiveUrl);
-                        const targetHost = absoluteUrl.hostname.replace(/^www\./, '');
+                if (depth < this.maxDepth) {
+                    $('a[href]').each((_, el) => {
+                        const href = $(el).attr('href');
+                        if (!href) return;
 
-                        if (targetHost === this.domain) {
-                            const cleanUrl = `${absoluteUrl.protocol}//${absoluteUrl.host}${absoluteUrl.pathname}`;
-                            const normalizedTarget = this.normalizeUrlForVisited(cleanUrl);
+                        try {
+                            const absoluteUrl = new URL(href, effectiveUrl);
+                            const targetHost = absoluteUrl.hostname.replace(/^www\./, '');
 
-                            if (!this.visited.has(normalizedTarget)) {
-                                this.queue.push(cleanUrl);
+                            if (targetHost === this.domain) {
+                                const cleanUrl = `${absoluteUrl.protocol}//${absoluteUrl.host}${absoluteUrl.pathname}`;
+                                const normalizedTarget = this.normalizeUrlForVisited(cleanUrl);
+
+                                if (!this.visited.has(normalizedTarget)) {
+                                    queue.push({ url: cleanUrl, depth: depth + 1 });
+                                }
                             }
+                        } catch (e) {
+                            // Invalid URL
                         }
-                    } catch (e) {
-                        // Invalid URL
-                    }
-                });
+                    });
+                }
             } catch (error) {
                 console.error(`Error crawling ${url}:`, error);
                 results[url] = { url, html: '', status: 500 };

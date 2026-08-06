@@ -1,47 +1,45 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { NextRequest, NextResponse } from 'next/server';
 import { getTokens } from '@/lib/gsc/client';
 import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
     const session = await getServerSession(authOptions);
-    if (!session?.user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!session?.user?.id) {
+        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/login`);
     }
 
     const { searchParams } = new URL(req.url);
     const code = searchParams.get('code');
 
     if (!code) {
-        return NextResponse.json({ error: 'No code provided' }, { status: 400 });
+        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/search-console?error=no_code`);
     }
 
     try {
         const tokens = await getTokens(code);
 
-        // Save tokens to the GscToken model
+        // Save or update GSC token for the user
         await prisma.gscToken.upsert({
             where: { userId: session.user.id },
             update: {
-                accessToken: tokens.access_token || '',
-                refreshToken: tokens.refresh_token || '',
-                expiryDate: BigInt(tokens.expiry_date || 0),
+                accessToken: tokens.access_token!,
+                refreshToken: tokens.refresh_token!,
+                expiryDate: BigInt(tokens.expiry_date!),
             },
             create: {
                 userId: session.user.id,
-                accessToken: tokens.access_token || '',
-                refreshToken: tokens.refresh_token || '',
-                expiryDate: BigInt(tokens.expiry_date || 0),
+                accessToken: tokens.access_token!,
+                refreshToken: tokens.refresh_token!,
+                expiryDate: BigInt(tokens.expiry_date!),
             },
         });
 
-        console.log('GSC Tokens saved for user:', session.user.id);
-
-        // Redirect back to the dashboard or settings page
-        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard?gsc=success`);
+        // Redirect back to search console
+        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/search-console?success=connected`);
     } catch (error) {
-        console.error('Error getting GSC tokens:', error);
-        return NextResponse.json({ error: 'Failed to authenticate with GSC' }, { status: 500 });
+        console.error('GSC Callback Error:', error);
+        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/search-console?error=sync_failed`);
     }
 }

@@ -8,7 +8,8 @@ import {
     Code2, MapPin, FileText, Gauge, RotateCcw,
     CheckCircle2, AlertTriangle, PlusCircle, Upload,
     RefreshCw, Layers, ExternalLink, Search, Loader2,
-    ArrowRight, Info, Zap, ChevronRight, ChevronUp, Image as ImageIcon, Globe
+    ArrowRight, Info, Zap, ChevronRight, ChevronUp, Image as ImageIcon, Globe,
+    Shield, Smartphone, Link2, BarChart3, Share2, Tag, Filter
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SEO_INSTRUCTIONS } from '@/lib/seo/instructions';
@@ -23,6 +24,22 @@ const tabs = [
     { id: 'robots', label: 'Robots.txt', icon: FileText },
     { id: 'speed', label: 'Speed', icon: Gauge },
     { id: 'redirects', label: 'Broken Links', icon: RotateCcw },
+];
+
+// Category filter options for the checks view
+const CATEGORY_FILTERS = [
+    { id: 'all', label: 'All Checks', icon: Filter },
+    { id: 'Content', label: 'Content', icon: FileText },
+    { id: 'Indexing', label: 'Indexing', icon: Search },
+    { id: 'Performance', label: 'Performance', icon: Gauge },
+    { id: 'Security', label: 'Security', icon: Shield },
+    { id: 'Mobile', label: 'Mobile', icon: Smartphone },
+    { id: 'Code', label: 'Code', icon: Code2 },
+    { id: 'Media', label: 'Media', icon: ImageIcon },
+    { id: 'Social', label: 'Social', icon: Share2 },
+    { id: 'Links', label: 'Links', icon: Link2 },
+    { id: 'Analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'Structure', label: 'Structure', icon: Layers },
 ];
 
 function CheckCard({ check, analysisResult }: { check: any; analysisResult: any }) {
@@ -49,7 +66,10 @@ function CheckCard({ check, analysisResult }: { check: any; analysisResult: any 
         detailsList = analysisResult.technical?.imagesWithoutAltDetails || [];
     }
     if (check.id === 'speed') displayValue = `${Math.round(analysisResult.stats?.performance?.performanceScore || 0)}/100`;
-    if (check.id === 'html_size') displayValue = `${(analysisResult.technical?.pageSize / 1024).toFixed(1)} KB`;
+    if (check.id === 'html_size') {
+        const kb = analysisResult.technical?.htmlSize ? (analysisResult.technical.htmlSize / 1024).toFixed(1) : '?';
+        displayValue = `${kb} KB`;
+    }
     if (check.id === 'broken_links') {
         displayValue = `${analysisResult.stats?.brokenLinks || 0} broken found`;
         detailsList = (analysisResult.stats?.brokenDetails || []).map((b: any) => `${b.url} (${b.status})`);
@@ -57,6 +77,32 @@ function CheckCard({ check, analysisResult }: { check: any; analysisResult: any 
     if (check.id === 'google_index') displayValue = analysisResult.stats?.authority?.indexed ? 'Indexed' : 'Not Indexed';
     if (check.id === 'inline_css') detailsList = analysisResult.technical?.inlineCssDetails || [];
     if (check.id === 'deprecated_html') detailsList = analysisResult.technical?.deprecatedTagsDetails || [];
+
+    // New checks
+    if (check.id === 'dom_size') displayValue = `${analysisResult.technical?.domElementCount || 0} elements`;
+    if (check.id === 'viewport') displayValue = analysisResult.technical?.hasViewport ? (analysisResult.technical?.viewportContent || 'Set') : 'Missing';
+    if (check.id === 'og_tags') {
+        const has = analysisResult.technical;
+        displayValue = [has?.hasOgTitle && 'og:title', has?.hasOgDesc && 'og:description', has?.hasOgImage && 'og:image']
+            .filter(Boolean).join(', ') || 'None found';
+    }
+    if (check.id === 'twitter_card') displayValue = analysisResult.technical?.hasTwitterCard ? 'Found' : 'Missing';
+    if (check.id === 'https') displayValue = analysisResult.results?.https === 'pass' ? 'Secure (HTTPS)' : 'Not Secure (HTTP)';
+    if (check.id === 'charset_declaration') displayValue = analysisResult.technical?.charset || (analysisResult.technical?.hasCharset ? 'Set' : 'Missing');
+    if (check.id === 'doctype') displayValue = analysisResult.technical?.hasDoctype ? 'HTML5' : 'Missing';
+    if (check.id === 'lang_attr') displayValue = analysisResult.technical?.language || 'Missing';
+    if (check.id === 'render_blocking') displayValue = `${analysisResult.technical?.renderBlockingScriptsCount || 0} blocking scripts`;
+    if (check.id === 'image_aspect') displayValue = `${analysisResult.technical?.imagesWithoutDimensions || 0} images without dimensions`;
+    if (check.id === 'lcp') displayValue = analysisResult.stats?.performance?.largestContentfulPaint || 'N/A';
+    if (check.id === 'cls') displayValue = analysisResult.stats?.performance?.cumulativeLayoutShift || 'N/A';
+    if (check.id === 'plaintext_emails') {
+        detailsList = analysisResult.technical?.plaintextEmails || [];
+        displayValue = detailsList.length > 0 ? `${detailsList.length} email(s) exposed` : 'None found';
+    }
+    if (check.id === 'unsafe_cross_origin') displayValue = `${analysisResult.technical?.unsafeCrossOriginCount || 0} unsafe links`;
+    if (check.id === 'media_query') displayValue = `${analysisResult.technical?.mediaQueryCount || 0} media queries`;
+    if (check.id === 'noindex_tag') displayValue = analysisResult.technical?.hasNoindex ? 'Noindex found' : 'Page is indexable';
+    if (check.id === 'canonical_tag') displayValue = analysisResult.technical?.canonical || (analysisResult.technical?.hasCanonicalTag ? 'Set' : 'Missing');
 
     return (
         <div className="glass-card p-5 border border-white/5 hover:border-white/10 transition-colors">
@@ -161,6 +207,7 @@ function DashboardContent() {
     const [selectedPage, setSelectedPage] = useState<string | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [isFetchingPosts, setIsFetchingPosts] = useState(false);
+    const [activeCategory, setActiveCategory] = useState<string>('all');
 
     // Sync activeTab with URL param
     useEffect(() => {
@@ -178,7 +225,7 @@ function DashboardContent() {
         if (activeTab !== currentTab) {
             const newSearchParams = new URLSearchParams(searchParams.toString());
             newSearchParams.set('tab', activeTab);
-            router.replace(`?${newSearchParams.toString()}`, { shallow: true });
+            router.replace(`?${newSearchParams.toString()}`);
         }
     }, [activeTab, searchParams, router]);
 
@@ -583,8 +630,35 @@ function DashboardContent() {
                                     </div>
                                 )}
 
+                                {/* Category filter pills */}
+                                <div className="flex flex-wrap gap-1.5 pb-2">
+                                    {CATEGORY_FILTERS.map((cat) => {
+                                        const CatIcon = cat.icon;
+                                        const catCount = cat.id === 'all'
+                                            ? EXHAUSTIVE_CHECKS.length
+                                            : EXHAUSTIVE_CHECKS.filter(c => c.category === cat.id).length;
+                                        return (
+                                            <button
+                                                key={cat.id}
+                                                onClick={() => setActiveCategory(cat.id)}
+                                                className={cn(
+                                                    'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all border',
+                                                    activeCategory === cat.id
+                                                        ? 'bg-brand-500/20 text-brand-400 border-brand-500/40'
+                                                        : 'bg-white/5 text-muted-foreground border-white/10 hover:bg-white/10'
+                                                )}
+                                            >
+                                                <CatIcon className="w-3 h-3" />
+                                                {cat.label}
+                                                <span className="opacity-60 text-[10px]">{catCount}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
                                 <div className={cn("grid grid-cols-1 gap-4 transition-opacity", isGlobalAnalyzing && selectedPage === currentAnalysis.currentPage && "opacity-50 pointer-events-none")}>
                                     {[...EXHAUSTIVE_CHECKS]
+                                        .filter((check) => activeCategory === 'all' || check.category === activeCategory)
                                         .sort((a, b) => {
                                             const order: Record<string, number> = { 'critical': 0, 'warning': 1, 'pass': 2, 'info': 3, 'pending': 4 };
                                             const statusA = currentAnalysis.results?.[a.id] || 'pending';

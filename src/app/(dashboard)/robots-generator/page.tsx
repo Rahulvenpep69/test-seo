@@ -17,6 +17,7 @@ function RobotsGeneratorContent() {
 
     // Options
     const [mode, setMode] = useState<'standard' | 'advanced'>('standard');
+    const [granularMode, setGranularMode] = useState(false);
     const [blockQueryParams, setBlockQueryParams] = useState(true);
     const [crawlDelay, setCrawlDelay] = useState(false);
     const [specificBot, setSpecificBot] = useState('*');
@@ -42,7 +43,7 @@ function RobotsGeneratorContent() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     url,
-                    options: { mode, blockQueryParams, crawlDelay, specificBot }
+                    options: { mode, granularMode, blockQueryParams, crawlDelay, specificBot }
                 })
             });
             const data = await res.json();
@@ -61,7 +62,7 @@ function RobotsGeneratorContent() {
             handleAnalyze();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [mode, blockQueryParams, crawlDelay, specificBot]);
+    }, [mode, granularMode, blockQueryParams, crawlDelay, specificBot]);
 
     const handleCopy = () => {
         if (!result?.robotsTxt) return;
@@ -155,9 +156,37 @@ function RobotsGeneratorContent() {
                                     </button>
                                 </div>
                                 {mode === 'advanced' && (
-                                    <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-300 flex items-start gap-2 mt-2 animate-fade-in">
-                                        <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                                        <p><strong>Warning:</strong> This method blocks <em>everything</em> by default (`Disallow: /`) and only allows specific discovered hubs. Use only if you need strict crawl budget control.</p>
+                                    <div className="space-y-4 pt-2 animate-fade-in">
+                                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-300 flex items-start gap-2">
+                                            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                                            <p><strong>Strict Warning:</strong> This mode blocks <em>everything</em> except allowed paths. Use only for full crawl control.</p>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-medium text-white/50 uppercase tracking-wider">Advanced Strategy</label>
+                                            <div className="flex flex-col gap-2">
+                                                <button
+                                                    onClick={() => setGranularMode(false)}
+                                                    className={cn("w-full py-2 px-3 rounded-lg text-xs font-medium border text-left flex items-center justify-between transition-all", !granularMode ? "bg-brand-500/10 border-brand-500/50 text-brand-400" : "bg-white/5 border-transparent text-muted-foreground hover:bg-white/10")}
+                                                >
+                                                    <div>
+                                                        <p>Smart Grouped</p>
+                                                        <p className="text-[10px] opacity-60 font-normal mt-0.5">Groups by folder (e.g. /blog/)</p>
+                                                    </div>
+                                                    {!granularMode && <Check className="w-3.5 h-3.5" />}
+                                                </button>
+                                                <button
+                                                    onClick={() => setGranularMode(true)}
+                                                    className={cn("w-full py-2 px-3 rounded-lg text-xs font-medium border text-left flex items-center justify-between transition-all", granularMode ? "bg-brand-500/10 border-brand-500/50 text-brand-400" : "bg-white/5 border-transparent text-muted-foreground hover:bg-white/10")}
+                                                >
+                                                    <div>
+                                                        <p>Granular Page-Level</p>
+                                                        <p className="text-[10px] opacity-60 font-normal mt-0.5">Lists every individual URL</p>
+                                                    </div>
+                                                    {granularMode && <Check className="w-3.5 h-3.5" />}
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -229,13 +258,49 @@ function RobotsGeneratorContent() {
                     {isAnalyzing && (
                         <div className="glass-card flex flex-col items-center justify-center p-20 text-muted-foreground h-full">
                             <Loader2 className="w-10 h-10 animate-spin mb-4 text-brand-500" />
-                            <p className="animate-pulse">Auditing your robots.txt structurally...</p>
+                            <p className="animate-pulse">Performing deep-crawl analysis (2-3 levels)...</p>
+                            <p className="text-xs text-muted-foreground mt-2 italic">Categorizing discovered URLs into Public, Private, and System paths...</p>
                         </div>
                     )}
 
                     {/* Results */}
                     {result && !isAnalyzing && (
                         <div className="space-y-6 animate-fade-in">
+
+                            {/* Section: Crawled Pages Summary */}
+                            {result.summary && (
+                                <div className="glass-card p-6 space-y-4 animate-slide-up">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <Search className="w-5 h-5 text-brand-400" />
+                                            <h3 className="font-semibold text-white">Crawled Pages Summary</h3>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-muted-foreground text-[10px] font-bold">
+                                                {result.summary.totalPages} Pages Crawled
+                                            </div>
+                                            <div className="px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 text-[10px] font-bold">
+                                                {result.summary.totalAllowed} Rules Applied
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                                        {[
+                                            { label: 'Public', count: result.summary.categories.public, color: 'text-green-400' },
+                                            { label: 'Static', count: result.summary.categories.static, color: 'text-blue-400' },
+                                            { label: 'Private', count: result.summary.categories.private, color: 'text-red-400' },
+                                            { label: 'System', count: result.summary.categories.system, color: 'text-purple-400' },
+                                            { label: 'Dynamic', count: result.summary.categories.dynamic, color: 'text-yellow-400' },
+                                        ].map((cat, i) => (
+                                            <div key={i} className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col items-center">
+                                                <span className={cn("text-lg font-bold", cat.color)}>{cat.count}</span>
+                                                <span className="text-[10px] uppercase text-muted-foreground mt-1 text-center">{cat.label}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Score header */}
                             <div className="glass-card p-6 flex flex-col sm:flex-row items-center justify-between gap-6">
@@ -268,7 +333,7 @@ function RobotsGeneratorContent() {
                                     </div>
                                     <div className="p-4 flex-1">
                                         {result.currentRobotsTxt ? (
-                                            <pre className="text-xs text-muted-foreground overflow-x-auto whitespace-pre-wrap font-mono p-4 bg-black/40 rounded-lg border border-white/5 max-h-[300px] overflow-y-auto custom-scroll">
+                                            <pre className="text-xs text-muted-foreground overflow-x-auto whitespace-pre-wrap break-all font-mono p-4 bg-black/40 rounded-lg border border-white/5 max-h-[300px] overflow-y-auto custom-scroll">
                                                 {result.currentRobotsTxt}
                                             </pre>
                                         ) : (
@@ -303,8 +368,11 @@ function RobotsGeneratorContent() {
                                                         <p className="text-xs text-muted-foreground mt-1 ml-6 leading-relaxed">{issue.message}</p>
                                                     </div>
                                                     <div className="pl-6 pt-3 border-t border-white/10">
-                                                        <p className="flex items-center gap-2 font-medium text-green-400">
-                                                            <CheckCircle2 className="w-4 h-4" /> Fix: <span className="text-green-200/90 text-xs">{issue.fix}</span>
+                                                        <p className="flex items-start gap-2 font-medium text-green-400">
+                                                            <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                                                            <span className="text-xs">
+                                                                Fix: <span className="text-green-200/90 break-all">{issue.fix}</span>
+                                                            </span>
                                                         </p>
                                                     </div>
                                                 </div>

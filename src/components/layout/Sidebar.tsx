@@ -34,9 +34,11 @@ const navItems = [
                 subItems: [
                     { href: '/image-alt-tags', label: 'Image Alt Tags', icon: ImageIcon },
                     { href: '/robots-generator', label: 'Robots.txt Generator', icon: Bot },
+                    { href: '/sitemap-generator', label: 'Sitemap Generator', icon: FileText },
                 ]
             },
             { href: '/meta-content', label: 'Meta Optimizer', icon: FileText },
+            { href: '/search-console', label: 'Search Console', icon: Search },
             { href: '/schema-generator', label: 'Schema Generator', icon: Zap },
             { href: '/website-integration', label: 'Website Integration', icon: Globe },
         ],

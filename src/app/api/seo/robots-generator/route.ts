@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
 import { robustFetch } from '@/lib/seo/fetch';
+import { Crawler } from '@/lib/seo/crawler';
 
 export async function POST(req: Request) {
     try {
@@ -14,41 +15,49 @@ export async function POST(req: Request) {
         const domainUrl = new URL(targetUrl);
         const baseUrl = `${domainUrl.protocol}//${domainUrl.host}`;
 
-        let html = '';
-        try {
-            const res = await robustFetch(targetUrl);
-            if (res.status < 400 && res.html) {
-                html = res.html;
-            }
-        } catch (e) { }
-
-        const $ = cheerio.load(html);
-
-        // 1. Detect CMS
-        const isWordPress = html.includes('wp-content') || html.includes('wp-includes') || html.includes('yoast');
-        const isShopify = html.includes('cdn.shopify.com');
-
-        // 2. Extract Links to detect folders
-        const links = new Set<string>();
-        $('a[href]').each((_, el) => {
-            const href = $(el).attr('href');
-            if (href && (href.startsWith('/') || href.startsWith(baseUrl))) {
-                try {
-                    const parsed = new URL(href, baseUrl);
-                    if (parsed.pathname !== '/') {
-                        links.add(parsed.pathname);
-                    }
-                } catch (e) { }
-            }
+        // 1. Deep Crawling (AI Smart)
+        const crawler = new Crawler(20); // Limit to 20 pages for speed
+        const crawlResults = await crawler.crawl(targetUrl);
+        const foundPaths = Object.keys(crawlResults).map(u => {
+            try { return new URL(u).pathname; } catch (e) { return '/'; }
         });
+        const uniquePaths = Array.from(new Set(foundPaths.map(p => p === '/' ? p : p.replace(/\/+$/, '').toLowerCase())));
+        const allHtml = Object.values(crawlResults).map(r => r.html).join(' ');
 
-        const paths = Array.from(links);
+        // 2. Detect CMS & Structure
+        const isWordPress = allHtml.includes('wp-content') || allHtml.includes('wp-includes') || allHtml.includes('yoast');
+        const isShopify = allHtml.includes('cdn.shopify.com');
 
-        // Detect e-commerce
-        const isECommerce = isShopify || paths.some(p => p.includes('/product') || p.includes('/category') || p.includes('/cart') || p.includes('/checkout'));
+        // 3. Advanced Classification Engine
+        const classification = {
+            public: new Set<string>(),
+            static: new Set<string>(),
+            private: new Set<string>(),
+            system: new Set<string>(),
+            dynamic: new Set<string>()
+        };
 
-        // Detect blog
-        const isBlog = isWordPress || paths.some(p => p.includes('/blog') || p.includes('/post') || p.includes('/article') || p.includes('/news'));
+        const categorizer = (path: string) => {
+            const low = path.toLowerCase();
+            if (path.includes('?')) classification.dynamic.add(path);
+
+            if (low.includes('/admin') || low.includes('/login') || low.includes('/dashboard') || low.includes('/account') || low.includes('/cart') || low.includes('/checkout')) {
+                classification.private.add(path);
+            } else if (low.includes('/wp-') || low.includes('/api/') || low.includes('/cdn/')) {
+                classification.system.add(path);
+            } else if (low.includes('/blog') || low.includes('/news') || low.includes('/product') || low.includes('/service') || low.includes('/item')) {
+                classification.public.add(path);
+            } else if (low.includes('/about') || low.includes('/contact') || low.includes('/faq') || low.includes('/career')) {
+                classification.static.add(path);
+            } else {
+                classification.public.add(path);
+            }
+        };
+
+        uniquePaths.forEach(categorizer);
+
+        const isECommerce = isShopify || Array.from(classification.public).some(p => p.includes('/product') || p.includes('/shop'));
+        const isBlog = isWordPress || Array.from(classification.public).some(p => p.includes('/blog') || p.includes('/news'));
 
         // 3. Detect Sitemap
         let hasSitemap = false;
@@ -155,8 +164,9 @@ export async function POST(req: Request) {
 
         // 4. Generate Optimized Robots.txt Rules
         const mode = options?.mode || 'standard';
+        const granularMode = options?.granularMode || false;
         const botName = options?.specificBot || '*';
-        let robotsText = `# AI-Optimized ${mode === 'advanced' ? 'Strict Allow-Based ' : ''}Robots.txt File\n`;
+        let robotsText = `# AI-Optimized ${mode === 'advanced' ? (granularMode ? 'Strict Granular ' : 'Strict Grouped ') : ''}Robots.txt File\n`;
         robotsText += `User-agent: ${botName}\n`;
 
         if (options?.crawlDelay) {
@@ -166,51 +176,69 @@ export async function POST(req: Request) {
         if (mode === 'advanced') {
             robotsText += `Disallow: /\n\n`;
 
-            // Core Pages
-            const corePages = Array.from(paths).filter(p => ['/', '/about', '/about-us', '/contact', '/contact-us', '/faq', '/careers'].includes(p.replace(/\/$/, '')));
+            if (granularMode) {
+                // GRANULAR MODE: List every unique discovered path
+                robotsText += `# Granular Page-Level Access\n`;
+                robotsText += `Allow: /\n`;
 
-            robotsText += `# Core Pages\n`;
-            robotsText += `Allow: /\n`; // ALWAYS allow root for advanced mode to match requirement
-            const uniqueCore = new Set(corePages.map(p => p.endsWith('/') ? p : p + '/'));
-            uniqueCore.delete('/');
-            Array.from(uniqueCore).forEach(p => robotsText += `Allow: ${p}\n`);
-            robotsText += `\n`;
+                // Group by type for better organization in the file
+                const sortedPaths = uniquePaths.filter(p => p !== '/').sort();
+                sortedPaths.forEach(p => {
+                    robotsText += `Allow: ${p}\n`;
+                });
+                robotsText += `\n`;
+            } else {
+                // SMART GROUPED MODE (Prefix aggregation)
+                // Core Pages
+                const corePages = Array.from(uniquePaths).filter((p: string) => ['/', '/about', '/about-us', '/contact', '/contact-us', '/faq', '/careers'].includes(p));
 
-            // Categorize prefixes
-            const prefixCounts: Record<string, number> = {};
-            paths.forEach(p => {
-                const parts = p.split('/').filter(Boolean);
-                if (parts.length > 0) {
-                    const prefix = `/${parts[0]}/`;
-                    prefixCounts[prefix] = (prefixCounts[prefix] || 0) + 1;
+                robotsText += `# Core Pages\n`;
+                robotsText += `Allow: /\n`;
+                const uniqueCore = new Set(corePages.map(p => p === '/' ? p : p + '/'));
+                uniqueCore.delete('/');
+                Array.from(uniqueCore).forEach(p => robotsText += `Allow: ${p}\n`);
+                robotsText += `\n`;
+
+                // Categorize prefixes
+                const prefixCounts: Record<string, number> = {};
+                uniquePaths.forEach((p: string) => {
+                    const parts = p.split('/').filter(Boolean);
+                    if (parts.length > 0) {
+                        const prefix = `/${parts[0]}/`;
+                        prefixCounts[prefix] = (prefixCounts[prefix] || 0) + 1;
+                    }
+                });
+
+                // Blog/News
+                const blogPrefixes = ['/blog/', '/news/', '/articles/', '/post/'];
+                const foundBlogs = Array.from(classification.public).filter((p: string) => blogPrefixes.some(pref => p.startsWith(pref)));
+                if (foundBlogs.length > 0 || isBlog) {
+                    robotsText += `# Blog Section\n`;
+                    const prefixes = new Set(foundBlogs.map((p: string) => '/' + p.split('/')[1] + '/'));
+                    if (isBlog && prefixes.size === 0) prefixes.add('/blog/');
+                    Array.from(prefixes).forEach((p: any) => robotsText += `Allow: ${p}\n`);
+                    robotsText += `\n`;
                 }
-            });
 
-            // Blog/News
-            const blogPrefixes = ['/blog/', '/news/', '/articles/', '/post/'];
-            const foundBlogs = blogPrefixes.filter(p => prefixCounts[p] && prefixCounts[p] >= 1);
-            if (foundBlogs.length > 0) {
-                robotsText += `# Blog Section\n`;
-                foundBlogs.forEach(p => robotsText += `Allow: ${p}\n`);
-                robotsText += `\n`;
-            }
+                // Products
+                const productPrefixes = ['/products/', '/product/', '/collections/', '/category/', '/shop/'];
+                const foundProducts = Array.from(classification.public).filter((p: string) => productPrefixes.some(pref => p.startsWith(pref)));
+                if (foundProducts.length > 0 || isECommerce) {
+                    robotsText += `# Products\n`;
+                    const prefixes = new Set(foundProducts.map((p: string) => '/' + p.split('/')[1] + '/'));
+                    if (isECommerce && prefixes.size === 0) prefixes.add('/products/');
+                    Array.from(prefixes).forEach((p: any) => robotsText += `Allow: ${p}\n`);
+                    robotsText += `\n`;
+                }
 
-            // Products
-            const productPrefixes = ['/products/', '/product/', '/collections/', '/category/', '/shop/'];
-            const foundProducts = productPrefixes.filter(p => prefixCounts[p] && prefixCounts[p] >= 1);
-            if (foundProducts.length > 0) {
-                robotsText += `# Products\n`;
-                foundProducts.forEach(p => robotsText += `Allow: ${p}\n`);
-                robotsText += `\n`;
-            }
-
-            // Legal
-            const legalPages = Array.from(paths).filter(p => p.includes('privacy') || p.includes('terms') || p.includes('legal') || p.includes('policy'));
-            if (legalPages.length > 0) {
-                robotsText += `# Legal Pages\n`;
-                const uniqueLegal = new Set(legalPages.map(p => p.endsWith('/') ? p : p + '/'));
-                Array.from(uniqueLegal).forEach(p => robotsText += `Allow: ${p}\n`);
-                robotsText += `\n`;
+                // Legal
+                const legalPages = Array.from(classification.public).filter((p: string) => p.includes('privacy') || p.includes('terms') || p.includes('legal') || p.includes('policy'));
+                if (legalPages.length > 0) {
+                    robotsText += `# Legal Pages\n`;
+                    const uniqueLegal = new Set(legalPages.map(p => p.endsWith('/') ? p : p + '/'));
+                    Array.from(uniqueLegal).forEach(p => robotsText += `Allow: ${p}\n`);
+                    robotsText += `\n`;
+                }
             }
 
         } else {
@@ -230,7 +258,7 @@ export async function POST(req: Request) {
                 robotsText += `Allow: /services/\n`;
             }
 
-            robotsText += `\n# Disallow crawling of secure or private areas\n`;
+            robotsText += `\n# Block sensitive areas\n`;
 
             // Common disallows
             const disallows = new Set<string>(['/admin/', '/login/', '/private/', '/dashboard/']);
@@ -250,8 +278,11 @@ export async function POST(req: Request) {
             }
 
             if (options?.blockQueryParams) {
-                disallows.add('/*?');
-                disallows.add('/*%');
+                robotsText += `\n# Smart Parameter control\n`;
+                robotsText += `Disallow: /*?utm_\n`;
+                robotsText += `Disallow: /*?replytocom=\n`;
+                robotsText += `Disallow: /*?filter=\n`;
+                robotsText += `Disallow: /*?sort=\n`;
             }
 
             // Output disallows
@@ -262,17 +293,47 @@ export async function POST(req: Request) {
             robotsText += `\n`;
         }
 
+        // 5. Validation Engine
+        const validationIssues = [];
+        const finalRobotsLower = robotsText.toLowerCase();
+
+        if (finalRobotsLower.includes('disallow: /css/') || finalRobotsLower.includes('disallow: /assets/')) {
+            validationIssues.push({ type: 'warning', title: 'Over-blocking detected', message: 'Blocking CSS or assets may prevent search engines from properly rendering your site.' });
+        }
+        if (finalRobotsLower.includes('disallow: /js/')) {
+            validationIssues.push({ type: 'warning', title: 'JS Blocking detected', message: 'Blocking JavaScript directories can lead to indexation issues on modern web apps.' });
+        }
+        if (!hasSitemap && !finalRobotsLower.includes('sitemap:')) {
+            validationIssues.push({ type: 'error', title: 'Missing sitemap', message: 'Neither a discovered sitemap nor a sitemap directive was found.' });
+        }
+
+        // Combined issues
+        const allIssues = [...issues, ...validationIssues];
+
         if (hasSitemap) {
             robotsText += `# XML Sitemap Navigation\n`;
             robotsText += `Sitemap: ${sitemapUrl}\n`;
         }
 
+        const totalAllowed = (robotsText.match(/^Allow: /gm) || []).length;
+
         return NextResponse.json({
             success: true,
             currentRobotsTxt,
             score,
-            issues,
+            issues: allIssues,
             robotsTxt: robotsText.trim(),
+            summary: {
+                totalPages: Object.keys(crawlResults).length,
+                totalAllowed,
+                categories: {
+                    public: classification.public.size,
+                    static: classification.static.size,
+                    private: classification.private.size,
+                    system: classification.system.size,
+                    dynamic: classification.dynamic.size
+                }
+            },
             insights: {
                 isWordPress,
                 isShopify,

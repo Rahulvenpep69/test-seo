@@ -1,5 +1,5 @@
 import { prisma } from '../prisma';
-import { getGscData } from '../gsc/sync';
+import { getAuthorizedClient } from '../gsc/client';
 import { checkRankChanges } from '../notifications/rank-alerts';
 
 export async function updateKeywordRankings(websiteId: string) {
@@ -25,7 +25,18 @@ export async function updateKeywordRankings(websiteId: string) {
             const startDate = thirtyDaysAgo.toISOString().split('T')[0];
             const endDate = today.toISOString().split('T')[0];
 
-            const gscData = await getGscData(website.userId, website.domain, startDate, endDate);
+            const client = await getAuthorizedClient(website.userId);
+            const response = await client.searchanalytics.query({
+                siteUrl: website.domain,
+                requestBody: {
+                    startDate,
+                    endDate,
+                    dimensions: ['query', 'page'],
+                    rowLimit: 1000,
+                },
+            });
+
+            const gscData = response.data.rows || [];
 
             // Update each tracked keyword with its position from GSC
             for (const keyword of website.keywords) {

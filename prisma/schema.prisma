@@ -3,38 +3,39 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id            String         @id @default(cuid())
-  name          String?
-  email         String         @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  role          String         @default("USER")
-  status        String         @default("ACTIVE")
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  accounts      Account[]
-  agencyMembers AgencyMember[]
-  aiCredits     AiCredit?
-  gscToken      GscToken?
-  notifications Notification[]
-  reports       Report[]
-  sessions      Session[]
-  subscription  Subscription?
-  websites      Website[]
-  uptimeMonitors UptimeMonitor[]
-  statusPages    StatusPage[]
+  id                 String               @id @default(cuid()) @map("_id")
+  name               String?
+  email              String               @unique
+  emailVerified      DateTime?
+  image              String?
+  password           String?
+  role               String               @default("USER")
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  status             String               @default("ACTIVE")
+  accounts           Account[]
+  agencyMembers      AgencyMember[]
+  aiCredits          AiCredit?
+  gscToken           GscToken?
+  notifications      Notification[]
+  reports            Report[]
+  script_connections script_connections[]
+  sessions           Session[]
+  statusPages        StatusPage[]
+  subscription       Subscription?
+  uptimeMonitors     UptimeMonitor[]
+  websites           Website[]
 
   @@map("users")
 }
 
 model FeatureFlag {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   name      String   @unique
   enabled   Boolean  @default(true)
   updatedAt DateTime @updatedAt
@@ -43,7 +44,7 @@ model FeatureFlag {
 }
 
 model Account {
-  id                String  @id @default(cuid())
+  id                String  @id @default(cuid()) @map("_id")
   userId            String
   type              String
   provider          String
@@ -62,7 +63,7 @@ model Account {
 }
 
 model Session {
-  id           String   @id @default(cuid())
+  id           String   @id @default(cuid()) @map("_id")
   sessionToken String   @unique
   userId       String
   expires      DateTime
@@ -72,6 +73,7 @@ model Session {
 }
 
 model VerificationToken {
+  id                 String               @id @default(cuid()) @map("_id")
   identifier String
   token      String   @unique
   expires    DateTime
@@ -81,12 +83,12 @@ model VerificationToken {
 }
 
 model Subscription {
-  id                   String    @id @default(cuid())
+  id                   String    @id @default(cuid()) @map("_id")
   userId               String    @unique
   plan                 String    @default("FREE")
   status               String    @default("ACTIVE")
-  stripeCustomerId     String?   @unique
-  stripeSubscriptionId String?   @unique
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
   stripePriceId        String?
   currentPeriodStart   DateTime?
   currentPeriodEnd     DateTime?
@@ -99,7 +101,7 @@ model Subscription {
 }
 
 model Website {
-  id          String       @id @default(cuid())
+  id          String       @id @default(cuid()) @map("_id")
   userId      String
   name        String
   domain      String?
@@ -109,28 +111,31 @@ model Website {
   goal        String       @default("BLOG")
   builderMode String       @default("MANUAL")
   published   Boolean      @default(false)
-  status      String       @default("ACTIVE")
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   agencyId    String?
+  status      String       @default("ACTIVE")
   adsAccounts AdsAccount[]
+  aiSchemas   AiSchema[]
   Backlink    Backlink[]
   competitors Competitor[]
   keywords    Keyword[]
   pages       Page[]
   posts       Post[]
   products    Product[]
-  redirects   Redirect[]
-  seoReports  SeoReport[]
-  aiSchemas   AiSchema[]
-  agency      Agency?      @relation("AgencyToWebsite", fields: [agencyId], references: [id])
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  redirects      Redirect[]
+  seoReports     SeoReport[]
+  gscProperty    GscProperty?
+  crawlJobs      CrawlJob[]
+  sitemaps       Sitemap[]
+  agency         Agency?      @relation("AgencyToWebsite", fields: [agencyId], references: [id])
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("websites")
 }
 
 model Page {
-  id         String     @id @default(cuid())
+  id         String     @id @default(cuid()) @map("_id")
   websiteId  String
   title      String
   slug       String
@@ -152,7 +157,7 @@ model Page {
 }
 
 model Post {
-  id          String         @id @default(cuid())
+  id          String         @id @default(cuid()) @map("_id")
   websiteId   String
   title       String
   slug        String
@@ -176,7 +181,7 @@ model Post {
 }
 
 model Category {
-  id        String         @id @default(cuid())
+  id        String         @id @default(cuid()) @map("_id")
   name      String
   slug      String         @unique
   createdAt DateTime       @default(now())
@@ -186,7 +191,7 @@ model Category {
 }
 
 model Tag {
-  id        String    @id @default(cuid())
+  id        String    @id @default(cuid()) @map("_id")
   name      String
   slug      String    @unique
   createdAt DateTime  @default(now())
@@ -196,27 +201,29 @@ model Tag {
 }
 
 model PostCategory {
+  id                 String               @id @default(cuid()) @map("_id")
   postId     String
   categoryId String
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
 
-  @@id([postId, categoryId])
+  @@unique([postId, categoryId])
   @@map("post_categories")
 }
 
 model PostTag {
+  id                 String               @id @default(cuid()) @map("_id")
   postId String
   tagId  String
-  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
   post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
-  @@id([postId, tagId])
+  @@unique([postId, tagId])
   @@map("post_tags")
 }
 
 model Media {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   websiteId String?
   name      String
   url       String
@@ -232,7 +239,7 @@ model Media {
 }
 
 model Revision {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   postId    String
   content   String
   createdAt DateTime @default(now())
@@ -242,7 +249,7 @@ model Revision {
 }
 
 model Product {
-  id           String      @id @default(cuid())
+  id           String      @id @default(cuid()) @map("_id")
   websiteId    String
   name         String
   slug         String
@@ -266,7 +273,7 @@ model Product {
 }
 
 model CartItem {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   sessionId String
   productId String
   quantity  Int      @default(1)
@@ -277,7 +284,7 @@ model CartItem {
 }
 
 model Order {
-  id              String      @id @default(cuid())
+  id              String      @id @default(cuid()) @map("_id")
   websiteId       String
   customerEmail   String
   customerName    String?
@@ -295,19 +302,19 @@ model Order {
 }
 
 model OrderItem {
-  id        String  @id @default(cuid())
+  id        String  @id @default(cuid()) @map("_id")
   orderId   String
   productId String
   quantity  Int
   price     Float
-  product   Product @relation(fields: [productId], references: [id])
   order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
 
   @@map("order_items")
 }
 
 model Payment {
-  id                String   @id @default(cuid())
+  id                String   @id @default(cuid()) @map("_id")
   orderId           String   @unique
   amount            Float
   currency          String   @default("usd")
@@ -321,7 +328,7 @@ model Payment {
 }
 
 model Coupon {
-  id        String    @id @default(cuid())
+  id        String    @id @default(cuid()) @map("_id")
   code      String    @unique
   type      String    @default("PERCENTAGE")
   value     Float
@@ -335,7 +342,7 @@ model Coupon {
 }
 
 model SeoReport {
-  id             String     @id @default(cuid())
+  id             String     @id @default(cuid()) @map("_id")
   websiteId      String
   overallScore   Int        @default(0)
   technicalScore Int        @default(0)
@@ -355,7 +362,7 @@ model SeoReport {
 }
 
 model SeoIssue {
-  id          String    @id @default(cuid())
+  id          String    @id @default(cuid()) @map("_id")
   reportId    String
   pageId      String?
   type        String
@@ -372,7 +379,7 @@ model SeoIssue {
 }
 
 model Redirect {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   websiteId String
   from      String
   to        String
@@ -385,7 +392,7 @@ model Redirect {
 }
 
 model AiCredit {
-  id        String    @id @default(cuid())
+  id        String    @id @default(cuid()) @map("_id")
   userId    String    @unique
   total     Int       @default(50)
   used      Int       @default(0)
@@ -399,7 +406,7 @@ model AiCredit {
 }
 
 model AiUsage {
-  id          String   @id @default(cuid())
+  id          String   @id @default(cuid()) @map("_id")
   creditId    String
   tool        String
   tokensUsed  Int      @default(0)
@@ -413,7 +420,7 @@ model AiUsage {
 }
 
 model AdsAccount {
-  id          String      @id @default(cuid())
+  id          String      @id @default(cuid()) @map("_id")
   websiteId   String
   platform    String
   accountId   String
@@ -427,7 +434,7 @@ model AdsAccount {
 }
 
 model AdsMetric {
-  id          String     @id @default(cuid())
+  id          String     @id @default(cuid()) @map("_id")
   accountId   String
   date        DateTime
   clicks      Int        @default(0)
@@ -444,7 +451,7 @@ model AdsMetric {
 }
 
 model AutomationRule {
-  id        String          @id @default(cuid())
+  id        String          @id @default(cuid()) @map("_id")
   websiteId String?
   name      String
   trigger   String
@@ -458,7 +465,7 @@ model AutomationRule {
 }
 
 model AutomationLog {
-  id        String         @id @default(cuid())
+  id        String         @id @default(cuid()) @map("_id")
   ruleId    String
   status    String
   details   String?
@@ -469,7 +476,7 @@ model AutomationLog {
 }
 
 model Notification {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   title     String
   message   String
@@ -483,7 +490,7 @@ model Notification {
 }
 
 model Report {
-  id        String    @id @default(cuid())
+  id        String    @id @default(cuid()) @map("_id")
   userId    String
   websiteId String?
   title     String
@@ -498,7 +505,7 @@ model Report {
 }
 
 model Keyword {
-  id        String           @id @default(cuid())
+  id        String           @id @default(cuid()) @map("_id")
   websiteId String
   term      String
   targetUrl String?
@@ -513,7 +520,7 @@ model Keyword {
 }
 
 model KeywordRanking {
-  id           String   @id @default(cuid())
+  id           String   @id @default(cuid()) @map("_id")
   keywordId    String
   position     Int
   bestPosition Int?
@@ -527,7 +534,7 @@ model KeywordRanking {
 }
 
 model Competitor {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   websiteId String
   name      String
   url       String
@@ -539,7 +546,7 @@ model Competitor {
 }
 
 model GscToken {
-  id           String   @id @default(cuid())
+  id           String   @id @default(cuid()) @map("_id")
   userId       String   @unique
   accessToken  String
   refreshToken String
@@ -552,7 +559,7 @@ model GscToken {
 }
 
 model Backlink {
-  id              String   @id @default(cuid())
+  id              String   @id @default(cuid()) @map("_id")
   websiteId       String
   referringDomain String
   anchorText      String?
@@ -568,7 +575,7 @@ model Backlink {
 }
 
 model SystemSetting {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   key       String   @unique
   value     String
   group     String   @default("GENERAL")
@@ -579,7 +586,7 @@ model SystemSetting {
 }
 
 model SystemLog {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   type      String   @default("INFO")
   source    String?
   message   String
@@ -591,7 +598,7 @@ model SystemLog {
 }
 
 model ApiUsage {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   provider  String
   type      String
   success   Boolean  @default(true)
@@ -602,7 +609,7 @@ model ApiUsage {
 }
 
 model Agency {
-  id          String          @id @default(cuid())
+  id          String          @id @default(cuid()) @map("_id")
   name        String
   description String?
   logo        String?
@@ -618,22 +625,22 @@ model Agency {
 }
 
 model AgencyMember {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   agencyId  String
   userId    String
   role      String   @default("MEMBER")
   status    String   @default("ACTIVE")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([agencyId, userId])
   @@map("agency_members")
 }
 
 model AgencyFeature {
-  id       String  @id @default(cuid())
+  id       String  @id @default(cuid()) @map("_id")
   agencyId String
   feature  String
   enabled  Boolean @default(true)
@@ -645,7 +652,7 @@ model AgencyFeature {
 }
 
 model PaymentGateway {
-  id            String   @id @default(cuid())
+  id            String   @id @default(cuid()) @map("_id")
   name          String
   isEnabled     Boolean  @default(true)
   isLive        Boolean  @default(false)
@@ -660,34 +667,35 @@ model PaymentGateway {
 }
 
 model UptimeMonitor {
-  id               String         @id @default(cuid())
-  userId           String
-  name             String
-  url              String
-  type             String         @default("HTTP")
-  interval         Int            @default(5)
-  active           Boolean        @default(true)
-  status           String         @default("UNKNOWN")
-  crawlProgress    Int            @default(0)
-  lastChecked      DateTime?
-  lastStatus       Int?
-  lastResponseTime Int?
-  config           String         @default("{}")
-  responseTimeThreshold Int?      @default(5000)
-  locations        String         @default("[\"Global\"]")
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  emails           MonitorEmail[]
-  checks           UptimeCheck[]
-  pages            MonitorPage[]
-  statusPages      StatusPage[]   @relation("StatusPageMonitors")
+  id                    String         @id @default(cuid()) @map("_id")
+  userId                String
+  name                  String
+  url                   String
+  interval              Int            @default(5)
+  active                Boolean        @default(true)
+  status                String         @default("UNKNOWN")
+  crawlProgress         Int            @default(0)
+  lastChecked           DateTime?
+  lastStatus            Int?
+  lastResponseTime      Int?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  config                String         @default("{}")
+  locations             String         @default("[\"Global\"]")
+  responseTimeThreshold Int?           @default(5000)
+  type                  String         @default("HTTP")
+  emails                MonitorEmail[]
+  pages                 MonitorPage[]
+  checks                UptimeCheck[]
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  statusPageIds         String[]
+  statusPages           StatusPage[]   @relation("StatusPageMonitors", fields: [statusPageIds], references: [id])
 
   @@map("uptime_monitors")
 }
 
 model StatusPage {
-  id          String          @id @default(cuid())
+  id          String          @id @default(cuid()) @map("_id")
   userId      String
   name        String
   slug        String          @unique
@@ -696,23 +704,24 @@ model StatusPage {
   theme       String          @default("DARK")
   isPublic    Boolean         @default(true)
   active      Boolean         @default(true)
-  monitors    UptimeMonitor[] @relation("StatusPageMonitors")
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  monitorIds            String[]
+  monitors              UptimeMonitor[] @relation("StatusPageMonitors", fields: [monitorIds], references: [id])
 
   @@map("status_pages")
 }
 
 model MonitorPage {
-  id              String        @id @default(cuid())
+  id              String        @id @default(cuid()) @map("_id")
   monitorId       String
   url             String
   active          Boolean       @default(true)
-  metaTitle       String?
-  metaDescription String?
-  seoScore        Int?
   lastAnalyzed    DateTime?
+  metaDescription String?
+  metaTitle       String?
+  seoScore        Int?
   monitor         UptimeMonitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
   checks          UptimeCheck[]
 
@@ -721,7 +730,7 @@ model MonitorPage {
 }
 
 model MonitorEmail {
-  id        String        @id @default(cuid())
+  id        String        @id @default(cuid()) @map("_id")
   monitorId String
   email     String
   createdAt DateTime      @default(now())
@@ -732,31 +741,31 @@ model MonitorEmail {
 }
 
 model UptimeCheck {
-  id           String         @id @default(cuid())
+  id           String        @id @default(cuid()) @map("_id")
   monitorId    String
   pageId       String?
   statusCode   Int?
   responseTime Int?
-  seoScore     Int?
   isUp         Boolean
   error        String?
-  checkedAt    DateTime       @default(now())
-  monitor      UptimeMonitor  @relation(fields: [monitorId], references: [id], onDelete: Cascade)
-  page         MonitorPage?   @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  checkedAt    DateTime      @default(now())
+  seoScore     Int?
+  monitor      UptimeMonitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  page         MonitorPage?  @relation(fields: [pageId], references: [id])
 
   @@index([monitorId, checkedAt])
   @@map("uptime_checks")
 }
 
 model AiSchema {
-  id              String   @id @default(cuid())
+  id              String   @id @default(cuid()) @map("_id")
   websiteId       String?
   url             String
-  pageType        String?  // HOMEPAGE, PRODUCT, SERVICE, BLOG, CATEGORY, REAL_ESTATE, LOCAL_BUSINESS, etc.
-  schemaType      String?  // Organization, Product, Service, FAQ, etc.
-  generatedSchema Json     // The JSON-LD content
-  optimizedFor    String[] // ["SEO", "AEO", "GEO", "SXO"]
-  status          String   @default("GENERATED") // GENERATED, EDITED, APPLIED
+  pageType        String?
+  schemaType      String?
+  generatedSchema Json
+  optimizedFor    String[]
+  status          String   @default("GENERATED")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   website         Website? @relation(fields: [websiteId], references: [id], onDelete: Cascade)
@@ -764,4 +773,114 @@ model AiSchema {
   @@index([websiteId])
   @@index([url])
   @@map("ai_schemas")
+}
+
+model script_connections {
+  id           String         @id @map("_id")
+  userId       String
+  siteId       String         @unique
+  url          String
+  lastSeen     DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime
+  users        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  script_pages script_pages[]
+}
+
+model script_pages {
+  id                 String             @id @map("_id")
+  connectionId       String
+  url                String
+  seoData            Json
+  etag               String
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime
+  originalData       Json?
+  script_connections script_connections @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, url])
+}
+
+model GscProperty {
+  id           String           @id @default(cuid()) @map("_id")
+  websiteId    String           @unique
+  propertyUrl  String
+  siteType     String           @default("SITE")
+  permission   String?
+  verified     Boolean          @default(false)
+  lastSyncedAt DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  website      Website          @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  performance  GscPerformance[]
+
+  @@map("gsc_properties")
+}
+
+model GscPerformance {
+  id           String   @id @default(cuid()) @map("_id")
+  propertyId   String
+  date         DateTime
+  clicks       Int      @default(0)
+  impressions  Int      @default(0)
+  ctr          Float    @default(0)
+  position     Float    @default(0)
+  device       String?  // desktop, mobile, tablet
+  country      String?
+  query        String?
+  page         String?
+  type         String   @default("WEB") // WEB, IMAGE, VIDEO, NEWS
+  property     GscProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, date])
+  @@map("gsc_performance")
+}
+
+model CrawlJob {
+  id            String        @id @default(cuid()) @map("_id")
+  websiteId     String
+  status        String        @default("PENDING") // PENDING, RUNNING, COMPLETED, FAILED
+  pagesFound    Int           @default(0)
+  pagesCrawled  Int           @default(0)
+  startTime     DateTime?
+  endTime       DateTime?
+  error         String?
+  createdAt     DateTime      @default(now())
+  website       Website       @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  results       CrawlResult[]
+
+  @@map("crawl_jobs")
+}
+
+model CrawlResult {
+  id          String   @id @default(cuid()) @map("_id")
+  jobId       String
+  url         String
+  statusCode  Int?
+  title       String?
+  description String?
+  h1          String?
+  ogImage     String?
+  canonical   String?
+  linksCount  Int      @default(0)
+  loadTime    Int?     // in ms
+  contentSize Int?     // in bytes
+  isIndexed   Boolean  @default(false)
+  indexReason String?
+  job         CrawlJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("crawl_results")
+}
+
+model Sitemap {
+  id           String   @id @default(cuid()) @map("_id")
+  websiteId    String
+  url          String
+  lastSyncedAt DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  website      Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@map("sitemaps")
 }
