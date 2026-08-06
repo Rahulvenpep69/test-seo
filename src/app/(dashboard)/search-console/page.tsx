@@ -220,7 +220,7 @@ export default function SearchConsolePage() {
                         <div className="flex-1">
                             <h3 className="font-bold text-yellow-400 mb-1">Property Mapping Required</h3>
                             <p className="text-sm text-muted-foreground mb-4">
-                                We couldn't automatically find a matching Search Console property for <b>{activeWebsite.domain || activeWebsite.subdomain}</b>.
+                                We couldn&apos;t automatically find a matching Search Console property for <b>{activeWebsite.domain || activeWebsite.subdomain}</b>.
                                 Please select the correct property from your account.
                             </p>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">

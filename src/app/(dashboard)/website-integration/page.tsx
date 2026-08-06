@@ -348,7 +348,7 @@ export default function WebsiteIntegrationPage() {
                                         <div>
                                             <h4 className="text-sm font-bold text-emerald-400">Security Wall Bypass</h4>
                                             <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-                                                Use this method if you get "Access Forbidden" errors. It bypasses hosting security walls by using a custom bridge file.
+                                                Use this method if you get &quot;Access Forbidden&quot; errors. It bypasses hosting security walls by using a custom bridge file.
                                             </p>
                                         </div>
                                     </div>
