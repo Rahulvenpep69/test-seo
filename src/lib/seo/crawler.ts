@@ -15,6 +15,7 @@ export class Crawler {
     private maxDepth: number;
     private domain: string = '';
     private robots: any = null;
+    private useBrowser: boolean = false;
 
     constructor(maxPages: number = 1000, maxDepth: number = 3) {
         this.maxPages = maxPages;
@@ -58,16 +59,50 @@ export class Crawler {
         }
 
         // Establish base domain by following initial redirect
+        let initialFetchHtml = '';
+        let initialFetchStatus = 200;
         try {
             console.log(`[Crawler] Initial fetch for ${normalizedUrl}`);
-            const { url: finalUrlStr, status, html, error: fetchError } = await robustFetch(normalizedUrl);
-            console.log(`[Crawler] Initial fetch status: ${status}, Html length: ${html?.length}`);
+            let fetchResult = await robustFetch(normalizedUrl);
+            console.log(`[Crawler] Initial fetch status: ${fetchResult.status}, Html length: ${fetchResult.html?.length}`);
 
-            if (fetchError || (status >= 400 || status === 0) && (!html || html.length < 100 || html.includes('Just a moment') || html.includes('cf-challenge'))) {
-                throw new Error(fetchError || `Initial fetch failed with status ${status}`);
+            if (fetchResult.error || (fetchResult.status >= 400 || fetchResult.status === 0) && (!fetchResult.html || fetchResult.html.length < 100 || fetchResult.html.includes('Just a moment') || fetchResult.html.includes('cf-challenge'))) {
+                throw new Error(fetchResult.error || `Initial fetch failed with status ${fetchResult.status}`);
             }
 
-            const finalUrl = new URL(finalUrlStr || normalizedUrl);
+            // Check if it's an SPA (Vite/React/etc.) shell with very few links
+            const $ = cheerio.load(fetchResult.html || '');
+            let linkCount = 0;
+            $('a[href]').each((_, el) => {
+                const href = $(el).attr('href');
+                if (href) {
+                    linkCount++;
+                }
+            });
+
+            if (linkCount <= 1) {
+                console.log(`[Crawler] Found very few links (${linkCount}) in raw HTML. Retrying with Playwright browser to check for SPA...`);
+                const browserResult = await robustFetch(normalizedUrl, true);
+                const $browser = cheerio.load(browserResult.html || '');
+                let browserLinkCount = 0;
+                $browser('a[href]').each((_, el) => {
+                    const href = $browser(el).attr('href');
+                    if (href) {
+                        browserLinkCount++;
+                    }
+                });
+
+                if (browserLinkCount > linkCount) {
+                    console.log(`[Crawler] SPA detected! Switching to browser mode. Link count increased from ${linkCount} to ${browserLinkCount}`);
+                    fetchResult = browserResult;
+                    this.useBrowser = true;
+                }
+            }
+
+            initialFetchHtml = fetchResult.html;
+            initialFetchStatus = fetchResult.status;
+
+            const finalUrl = new URL(fetchResult.url || normalizedUrl);
             this.domain = finalUrl.hostname.replace(/^www\./, '');
             normalizedUrl = finalUrl.toString();
 
@@ -97,13 +132,25 @@ export class Crawler {
                 this.visited.add(normalizedForVisited);
                 console.log(`[Crawler] Processing queue item: ${url} (Normalized: ${normalizedForVisited})`);
 
-                const { html, status, url: effectiveUrl, error: fetchError } = await robustFetch(url);
-                console.log(`[Crawler] Queue item fetch result: ${url} -> status ${status}, html length ${html?.length}`);
+                let html = '';
+                let status = 200;
+                let effectiveUrl = url;
 
-                if (fetchError || (status >= 400 || status === 0) && (!html || html.length < 100 || html.includes('Just a moment') || html.includes('cf-challenge'))) {
-                    console.error(`[Crawler] Block or failure detected for ${url}: ${fetchError || status}`);
-                    results[url] = { url, html: '', status: status || 0 };
-                    continue;
+                if (url === normalizedUrl) {
+                    // Reuse initial fetch html to save time
+                    html = initialFetchHtml;
+                    status = initialFetchStatus;
+                } else {
+                    const fetchResult = await robustFetch(url, this.useBrowser);
+                    html = fetchResult.html;
+                    status = fetchResult.status;
+                    effectiveUrl = fetchResult.url || url;
+
+                    if (fetchResult.error || (status >= 400 || status === 0) && (!html || html.length < 100 || html.includes('Just a moment') || html.includes('cf-challenge'))) {
+                        console.error(`[Crawler] Block or failure detected for ${url}: ${fetchResult.error || status}`);
+                        results[url] = { url, html: '', status: status || 0 };
+                        continue;
+                    }
                 }
 
                 results[url] = { url: effectiveUrl, html, status };

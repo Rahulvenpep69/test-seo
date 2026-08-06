@@ -36,7 +36,7 @@ function AnalyzingContent() {
                 const crawlRes = await fetch('/api/crawl', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url, limit: 10 })
+                    body: JSON.stringify({ url, limit: 50 })
                 });
                 if (crawlRes.ok) setStatus(s => ({ ...s, crawled: true }));
 

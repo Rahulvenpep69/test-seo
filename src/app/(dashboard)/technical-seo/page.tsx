@@ -203,6 +203,7 @@ function DashboardContent() {
     // Set all as default tab
     const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'all');
     const [url, setUrl] = useState('');
+    const [crawlLimit, setCrawlLimit] = useState(50); // Crawl limit configuration
     const [crawlData, setCrawlData] = useState<Record<string, any>>({}); // Persistent storage of all page results
     const [selectedPage, setSelectedPage] = useState<string | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -318,7 +319,7 @@ function DashboardContent() {
             const res = await fetch('/api/crawl', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: crawlUrl, limit: 10 }),
+                body: JSON.stringify({ url: crawlUrl, limit: crawlLimit }),
             });
             const data = await res.json();
 
@@ -371,7 +372,7 @@ function DashboardContent() {
                     </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:max-w-2xl">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:max-w-3xl">
                     <div className="relative flex-1 group">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-brand-400 transition-colors" />
                         <input
@@ -383,6 +384,18 @@ function DashboardContent() {
                             className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-base text-white placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500/40 transition-all"
                         />
                     </div>
+                    
+                    <select
+                        value={crawlLimit}
+                        onChange={(e) => setCrawlLimit(Number(e.target.value))}
+                        className="bg-white/5 border border-white/10 rounded-xl px-4 h-[54px] text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500/40 transition-all cursor-pointer shrink-0"
+                    >
+                        <option value={10} className="bg-zinc-950 text-white">10 Pages</option>
+                        <option value={30} className="bg-zinc-950 text-white">30 Pages</option>
+                        <option value={50} className="bg-zinc-950 text-white">50 Pages</option>
+                        <option value={100} className="bg-zinc-950 text-white">100 Pages</option>
+                    </select>
+
                     <button
                         onClick={() => handleCrawl()}
                         disabled={isGlobalAnalyzing || !url}
