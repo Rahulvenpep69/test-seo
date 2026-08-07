@@ -243,19 +243,77 @@ function DashboardContent() {
         if (newUrl) setUrl(newUrl);
     }, [activeWebsite?.id, queryUrl]);
 
-    useEffect(() => {
-        if (queryUrl) {
-            setUrl(queryUrl);
-            handleCrawlUrl(queryUrl);
-        } else if (activeWebsite) {
-            const websiteUrl = activeWebsite.domain || `https://${activeWebsite.subdomain}.antigravity.run`;
-            setUrl(websiteUrl);
-            handleCrawlUrl(websiteUrl);
-        }
-    }, [queryUrl, activeWebsite?.id]);
-
     const [isPageAnalyzing, setIsPageAnalyzing] = useState(false);
+    const [isReportsLoading, setIsReportsLoading] = useState(false);
     const [localAnalysisResult, setLocalAnalysisResult] = useState<any>(null);
+
+    async function loadLatestReport(websiteId: string, websiteUrl: string) {
+        setIsReportsLoading(true);
+        setErrorMsg(null);
+        try {
+            const res = await fetch(`/api/reports?websiteId=${websiteId}`);
+            if (res.ok) {
+                const reports = await res.json();
+                // Find the latest report that has crawledPages > 1
+                const latestCrawlReport = reports.find((r: any) => r.crawledPages > 1);
+
+                if (latestCrawlReport && latestCrawlReport.fullResults) {
+                    const parsed = typeof latestCrawlReport.fullResults === 'string'
+                        ? JSON.parse(latestCrawlReport.fullResults)
+                        : latestCrawlReport.fullResults;
+
+                    if (parsed && Object.keys(parsed).length > 0) {
+                        // Check if parsed is the wrapper response object or direct results
+                        const isWrapper = parsed.results && !Object.keys(parsed).some(k => k.startsWith('http://') || k.startsWith('https://'));
+                        const actualResults = isWrapper ? parsed.results : parsed;
+
+                        // Populate crawlData
+                        setCrawlData(actualResults);
+
+                        const firstUrl = Object.keys(actualResults)[0];
+                        setSelectedPage(firstUrl);
+                        setLocalAnalysisResult({
+                            ...actualResults[firstUrl],
+                            isCrawl: true,
+                            allResults: actualResults,
+                            site_stats: latestCrawlReport.site_stats || parsed.site_stats || {
+                                robots: actualResults[firstUrl]?.stats?.robots || parsed.site_stats?.robots,
+                                sitemap: actualResults[firstUrl]?.stats?.sitemap || parsed.site_stats?.sitemap
+                            },
+                            currentPage: firstUrl
+                        });
+                        setIsReportsLoading(false);
+                        return true;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load latest crawl report:', e);
+        }
+        setIsReportsLoading(false);
+        return false;
+    }
+
+    useEffect(() => {
+        let isMounted = true;
+        async function init() {
+            if (queryUrl) {
+                setUrl(queryUrl);
+                handleCrawlUrl(queryUrl);
+            } else if (activeWebsite) {
+                const websiteUrl = activeWebsite.domain || `https://${activeWebsite.subdomain}.antigravity.run`;
+                setUrl(websiteUrl);
+
+                const loaded = await loadLatestReport(activeWebsite.id, websiteUrl);
+                if (!loaded && isMounted) {
+                    // No existing crawl report, run a fresh crawl
+                    handleCrawlUrl(websiteUrl);
+                }
+            }
+        }
+        init();
+        return () => { isMounted = false; };
+    }, [queryUrl, activeWebsite?.id]);
 
     async function handleAnalyze(targetUrl?: string) {
         const urlToAnalyze = targetUrl || url;
@@ -317,7 +375,7 @@ function DashboardContent() {
             const res = await fetch('/api/crawl', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: crawlUrl, limit: crawlLimit }),
+                body: JSON.stringify({ url: crawlUrl, limit: crawlLimit, websiteId: activeWebsite?.id }),
             });
             const data = await res.json();
 
@@ -354,7 +412,7 @@ function DashboardContent() {
 
     // Use local result if available, otherwise context
     const currentAnalysis = localAnalysisResult || analysisResult;
-    const isGlobalAnalyzing = isAnalyzing || isPageAnalyzing;
+    const isGlobalAnalyzing = isAnalyzing || isPageAnalyzing || isReportsLoading;
 
 
 

@@ -104,7 +104,7 @@ export async function analyzeTechnical(html: string, url: string) {
     const dom = htmlparser2.parseDocument(html);
 
     const titleNode = domutils.findOne((ele) => ele.name === 'title', dom.children);
-    const metaDescNode = domutils.findOne((ele) => ele.name === 'meta' && ele.attribs.name === 'description', dom.children);
+    const metaDescNode = domutils.findOne((ele) => ele.name === 'meta' && ele.attribs.name?.toLowerCase() === 'description', dom.children);
     const canonicalNode = domutils.findOne((ele) => ele.name === 'link' && ele.attribs.rel === 'canonical', dom.children);
     const h1Nodes = domutils.findAll((ele) => ele.name === 'h1', dom.children);
     const h2Nodes = domutils.findAll((ele) => ele.name === 'h2', dom.children);
@@ -115,8 +115,12 @@ export async function analyzeTechnical(html: string, url: string) {
     const inlineCssNodes = domutils.findAll((ele) => ele.name === 'style' || !!ele.attribs.style, dom.children);
     const deprecatedNodes = domutils.findAll((ele) => ['font', 'center', 'strike', 'u', 'dir', 'applet', 'marquee'].includes(ele.name), dom.children);
 
-    const title = titleNode ? domutils.textContent(titleNode) : '';
-    const metaDescription = metaDescNode?.attribs.content || '';
+    const title = titleNode ? domutils.textContent(titleNode).trim() : '';
+    let metaDescription = metaDescNode?.attribs.content || '';
+    if (!metaDescription) {
+        const ogDescNode = domutils.findOne((ele) => ele.name === 'meta' && ele.attribs.property?.toLowerCase() === 'og:description', dom.children);
+        metaDescription = ogDescNode?.attribs.content || '';
+    }
 
     // Extracted Text for basic keyword/word count analysis
     const textContent = domutils.textContent(dom).replace(/\s+/g, ' ').trim();

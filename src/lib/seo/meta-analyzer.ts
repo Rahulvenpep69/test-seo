@@ -41,8 +41,20 @@ export class MetaAnalyzer {
                 // Remove SVG elements before extracting text to prevent junk
                 $('svg, script, style, noscript, nav, footer').remove();
 
-                const title = this.cleanText($('title').text());
-                const description = this.cleanText($('meta[name="description"]').attr('content') || '');
+                const title = this.cleanText($('title').first().text() || $('meta[property="og:title"]').first().attr('content') || '');
+                
+                let rawDescription = '';
+                $('meta').each((_, el) => {
+                    const name = $(el).attr('name');
+                    const property = $(el).attr('property');
+                    if (name && name.toLowerCase() === 'description' && !rawDescription) {
+                        rawDescription = $(el).attr('content') || '';
+                    } else if (property && property.toLowerCase() === 'og:description' && !rawDescription) {
+                        rawDescription = $(el).attr('content') || '';
+                    }
+                });
+                const description = this.cleanText(rawDescription);
+                
                 const h1 = this.cleanText($('h1').first().text());
                 const h2 = $('h2').slice(0, 3).map((_, el) => $(el).text()).get().join(', ');
                 const content = this.cleanText($('body').text().substring(0, 1000));

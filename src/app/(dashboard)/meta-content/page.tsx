@@ -25,15 +25,38 @@ export default function MetaContentPage() {
     const { activeWebsite } = useWebsite();
     const [baseUrl, setBaseUrl] = useState('');
     const [isCrawling, setIsCrawling] = useState(false);
+    const [isDbLoading, setIsDbLoading] = useState(false);
     const [rows, setRows] = useState<MetaRow[]>([]);
     const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
+    const loadDatabasePages = async (websiteId: string) => {
+        setIsDbLoading(true);
+        setRows([]);
+        try {
+            const res = await fetch(`/api/seo/meta/analyze?websiteId=${websiteId}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.results) {
+                    setRows(data.results.map((r: any) => ({
+                        ...r,
+                        status: 'IDLE'
+                    })));
+                }
+            }
+        } catch (err) {
+            console.error('Failed to load database pages:', err);
+        } finally {
+            setIsDbLoading(false);
+        }
+    };
+
     useEffect(() => {
-        if (activeWebsite && !baseUrl) {
+        if (activeWebsite) {
             const url = activeWebsite.domain || `https://${activeWebsite.subdomain}.antigravity.run`;
             setBaseUrl(url);
+            loadDatabasePages(activeWebsite.id);
         }
-    }, [activeWebsite, baseUrl]);
+    }, [activeWebsite?.id]);
 
     const handleCrawl = async () => {
         if (!baseUrl) return;
@@ -117,6 +140,10 @@ export default function MetaContentPage() {
             if (res.ok) {
                 showToast('Changes applied successfully', 'success');
                 setRows(prev => prev.map(r => r.url === row.url ? { ...r, status: 'DONE' } : r));
+            } else {
+                const data = await res.json();
+                showToast(data.error || 'Failed to save changes', 'error');
+                setRows(prev => prev.map(r => r.url === row.url ? { ...r, status: 'ERROR' } : r));
             }
         } catch (err) {
             showToast('Failed to save changes', 'error');
@@ -298,7 +325,17 @@ export default function MetaContentPage() {
                                     )}
                                 </>
                             ))}
-                            {rows.length === 0 && !isCrawling && (
+                            {(isCrawling || isDbLoading) && rows.length === 0 && (
+                                <tr>
+                                    <td colSpan={4} className="px-6 py-20 text-center">
+                                        <div className="flex flex-col items-center justify-center space-y-4">
+                                            <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
+                                            <p className="text-sm text-muted-foreground">Loading pages...</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                            {rows.length === 0 && !isCrawling && !isDbLoading && (
                                 <tr>
                                     <td colSpan={4} className="px-6 py-20 text-center">
                                         <div className="max-w-xs mx-auto space-y-4 opacity-50">

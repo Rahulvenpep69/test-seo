@@ -19,7 +19,7 @@ import { calculateHeuristicPerformance } from '@/lib/seo/performance';
 
 export async function POST(req: Request) {
     try {
-        const { url, limit = 50 } = await req.json();
+        const { url, limit = 50, websiteId } = await req.json();
 
         if (!url) {
             return NextResponse.json({ error: 'URL is required' }, { status: 400 });
@@ -122,6 +122,42 @@ export async function POST(req: Request) {
                     }
                 }
             };
+        }
+
+        // Persist to DB if websiteId is provided and we have crawl results
+        if (websiteId && Object.keys(results).length > 0) {
+            try {
+                const { prisma } = await import('@/lib/prisma');
+
+                let totalScore = 0;
+                let totalSpeedScore = 0;
+                let totalIssues = 0;
+
+                for (const pageRes of Object.values(results)) {
+                    totalScore += pageRes.score || 0;
+                    totalSpeedScore += pageRes.stats?.performance?.performanceScore || 0;
+                    totalIssues += (pageRes.criticalCount || 0) + (pageRes.warningCount || 0);
+                }
+
+                const avgScore = Math.round(totalScore / Object.keys(results).length);
+                const avgSpeedScore = Math.round(totalSpeedScore / Object.keys(results).length);
+
+                await prisma.seoReport.create({
+                    data: {
+                        websiteId,
+                        overallScore: avgScore,
+                        technicalScore: avgScore,
+                        contentScore: avgScore,
+                        speedScore: avgSpeedScore,
+                        crawledPages: Object.keys(results).length,
+                        issuesFound: totalIssues,
+                        fullResults: JSON.stringify(results),
+                    }
+                });
+                console.log(`[Crawler] Saved site-wide crawl report to DB for website ${websiteId}`);
+            } catch (dbError) {
+                console.error('[DB PERSIST ERROR]', dbError);
+            }
         }
 
         return NextResponse.json({

@@ -137,10 +137,14 @@ Description: [clean meta description]`;
 
                         const result = await response.json();
                         const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                        const cleanText = text.replace(/```json|```/g, "").trim();
-                        const parsed = JSON.parse(cleanText);
-                        generatedTitle = parsed.title || '';
-                        generatedDesc = parsed.description || '';
+                        const jsonMatch = text.match(/\{[\s\S]*\}/);
+                        if (jsonMatch) {
+                            const parsed = JSON.parse(jsonMatch[0]);
+                            generatedTitle = parsed.title || '';
+                            generatedDesc = parsed.description || '';
+                        } else {
+                            throw new Error("No JSON block found in Gemini response");
+                        }
                     } else if (openAiKey) {
                         const openai = new OpenAI({ apiKey: openAiKey });
                         const completion = await openai.chat.completions.create({
@@ -153,9 +157,10 @@ Description: [clean meta description]`;
                         });
 
                         const content = completion.choices[0]?.message?.content || '';
-                        const lines = content.split('\n');
-                        generatedTitle = lines.find(l => l.startsWith('Title:'))?.replace('Title:', '').trim() || '';
-                        generatedDesc = lines.find(l => l.startsWith('Description:'))?.replace('Description:', '').trim() || '';
+                        const titleMatch = content.match(/(?:Title|Meta Title|Suggested Title)\s*:\s*(.*)/i);
+                        const descMatch = content.match(/(?:Description|Meta Description|Suggested Description)\s*:\s*(.*)/i);
+                        generatedTitle = titleMatch ? titleMatch[1].replace(/\*\*/g, '').trim() : '';
+                        generatedDesc = descMatch ? descMatch[1].replace(/\*\*/g, '').trim() : '';
                     }
                 } catch (err) {
                     console.error("AI Generation failed, using content-aware fallback", err);

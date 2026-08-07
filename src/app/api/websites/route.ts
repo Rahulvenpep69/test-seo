@@ -91,13 +91,37 @@ export async function GET() {
 
         const websites = await prisma.website.findMany({
             where: { userId: session.user.id },
-            include: {
+            select: {
+                id: true,
+                userId: true,
+                name: true,
+                domain: true,
+                subdomain: true,
+                favicon: true,
+                logo: true,
+                goal: true,
+                builderMode: true,
+                published: true,
+                createdAt: true,
+                updatedAt: true,
+                agencyId: true,
+                status: true,
                 _count: {
                     select: { pages: true },
                 },
                 seoReports: {
                     take: 1,
-                    orderBy: { createdAt: 'desc' }
+                    orderBy: { createdAt: 'desc' },
+                    select: {
+                        id: true,
+                        overallScore: true,
+                        technicalScore: true,
+                        contentScore: true,
+                        speedScore: true,
+                        issuesFound: true,
+                        crawledPages: true,
+                        createdAt: true
+                    }
                 }
             },
             orderBy: { createdAt: 'desc' },

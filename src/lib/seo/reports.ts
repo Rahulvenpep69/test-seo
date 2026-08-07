@@ -8,6 +8,51 @@ export function generateTechnicalSeoPdf(url: string, analysisResult: any) {
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
 
+        let isCrawlReport = false;
+        let crawledPagesSummary: any[] = [];
+        let displayResults = analysisResult?.results;
+        let displayStats = analysisResult?.stats;
+        let displayTechnical = analysisResult?.technical;
+        let displayStructuredData = analysisResult?.structuredData;
+
+        // Auto-detect crawl report structure
+        const firstResultKey = analysisResult?.results ? Object.keys(analysisResult.results)[0] : '';
+        if (firstResultKey && (firstResultKey.startsWith('http://') || firstResultKey.startsWith('https://'))) {
+            isCrawlReport = true;
+            const allPages = analysisResult.results; // Map of pageUrl -> pageData
+
+            // Find primary page (homepage or matching url, or first key)
+            const primaryPageUrl = Object.keys(allPages).find(k => k.replace(/\/$/, '') === url.replace(/\/$/, '')) || firstResultKey;
+            const primaryPageData = allPages[primaryPageUrl] || {};
+
+            displayResults = primaryPageData.results;
+            displayStats = primaryPageData.stats;
+            displayTechnical = primaryPageData.technical;
+            displayStructuredData = primaryPageData.structuredData;
+
+            crawledPagesSummary = Object.entries(allPages).map(([pageUrl, pageData]: [string, any]) => {
+                const pageScore = pageData.score ?? pageData.overallScore ?? 0;
+                const critical = pageData.criticalCount ?? 0;
+                const warning = pageData.warningCount ?? 0;
+                const passed = pageData.passCount ?? 0;
+                return [pageUrl, `${pageScore}/100`, `${critical} Crit / ${warning} Warn / ${passed} Pass`];
+            });
+        } else if (analysisResult?.isCrawl && analysisResult?.allResults) {
+            isCrawlReport = true;
+            displayResults = analysisResult.results;
+            displayStats = analysisResult.stats;
+            displayTechnical = analysisResult.technical;
+            displayStructuredData = analysisResult.structuredData;
+
+            crawledPagesSummary = Object.entries(analysisResult.allResults).map(([pageUrl, pageData]: [string, any]) => {
+                const pageScore = pageData.score ?? pageData.overallScore ?? 0;
+                const critical = pageData.criticalCount ?? 0;
+                const warning = pageData.warningCount ?? 0;
+                const passed = pageData.passCount ?? 0;
+                return [pageUrl, `${pageScore}/100`, `${critical} Crit / ${warning} Warn / ${passed} Pass`];
+            });
+        }
+
         // Brand colors (Indigo-500)
         const primaryRGB = [99, 102, 241]; // #6366f1
 
@@ -25,7 +70,7 @@ export function generateTechnicalSeoPdf(url: string, analysisResult: any) {
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(11);
         doc.setFont('helvetica', 'bold');
-        doc.text('TECHNICAL SEO AUDIT', pageWidth - 18, 24, { align: 'right' });
+        doc.text(isCrawlReport ? `TECHNICAL SEO AUDIT (${crawledPagesSummary.length} PAGES)` : 'TECHNICAL SEO AUDIT', pageWidth - 18, 24, { align: 'right' });
 
         doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
@@ -54,7 +99,7 @@ export function generateTechnicalSeoPdf(url: string, analysisResult: any) {
         const score = Math.round(
             analysisResult?.overallScore ??
             analysisResult?.score ??
-            analysisResult?.stats?.performance?.performanceScore ??
+            displayStats?.performance?.performanceScore ??
             0
         );
 
@@ -67,15 +112,53 @@ export function generateTechnicalSeoPdf(url: string, analysisResult: any) {
         doc.setFontSize(14);
         doc.text(`${score}/100`, pageWidth - 43, 59, { align: 'center' });
 
+        // ---- 2.5. Summary of Crawled Pages (Only for Crawl Reports) ----
+        let summaryTableEndY = 80;
+        if (isCrawlReport && crawledPagesSummary.length > 0) {
+            doc.setTextColor(40, 40, 40);
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Crawled Pages Summary', 18, 80);
+
+            autoTable(doc, {
+                startY: 85,
+                head: [['Page URL', 'Score', 'Issue Breakdown']],
+                body: crawledPagesSummary,
+                theme: 'striped',
+                headStyles: {
+                    fillColor: [99, 102, 241],
+                    textColor: 255,
+                    fontStyle: 'bold',
+                    fontSize: 9,
+                    cellPadding: 3,
+                },
+                bodyStyles: {
+                    fontSize: 8,
+                    cellPadding: 3,
+                    textColor: [60, 60, 60]
+                },
+                columnStyles: {
+                    0: { cellWidth: 100 },
+                    1: { cellWidth: 25, halign: 'center', fontStyle: 'bold' },
+                    2: { cellWidth: 'auto', halign: 'center' },
+                },
+                margin: { left: 18, right: 18 },
+            });
+
+            // Add a page break before Core Web Vitals to keep formatting clean
+            doc.addPage();
+            summaryTableEndY = 25;
+        }
+
         // ---- 3. Core Web Vitals ----
         doc.setTextColor(40, 40, 40);
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
-        doc.text('Core Web Vitals', 18, 80);
+        doc.text('Core Web Vitals', 18, summaryTableEndY);
 
-        const perf = analysisResult?.stats?.performance || {};
+        const perf = displayStats?.performance || {};
         autoTable(doc, {
-            startY: 85,
+            startY: summaryTableEndY + 5,
             head: [['Metric', 'Value', 'Target Range']],
             body: [
                 ['LCP — Largest Contentful Paint', `${perf?.largestContentfulPaint ?? 'N/A'}s`, '< 2.5s'],
@@ -111,10 +194,10 @@ export function generateTechnicalSeoPdf(url: string, analysisResult: any) {
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(40, 40, 40);
-        doc.text('Technical Audit Checklist', 18, auditY);
+        doc.text(isCrawlReport ? 'Technical Audit Checklist (Primary Page)' : 'Technical Audit Checklist', 18, auditY);
 
         const auditRows = EXHAUSTIVE_CHECKS.map(check => {
-            const rawVal = analysisResult?.results?.[check.id];
+            const rawVal = displayResults?.[check.id];
             const status = rawVal ? String(rawVal).toUpperCase() : 'PENDING';
 
             let explanation = check.suggestion ?? '—';

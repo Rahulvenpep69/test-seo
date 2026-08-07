@@ -15,12 +15,23 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'URL and Website ID are required' }, { status: 400 });
         }
 
-        // The URL from the crawler might be absolute, we need to map it to a Page or Post slug
-        // For simplicity in this specialized tool, we'll try to find an existing Page by slug
-        // If not found, we'll create a new Page record for this website
+        const website = await prisma.website.findUnique({
+            where: { id: websiteId }
+        });
 
-        const path = new URL(url).pathname;
-        const slug = path === '/' ? '/' : path.replace(/\/$/, '').slice(1);
+        if (!website) {
+            return NextResponse.json({ error: 'Website not found' }, { status: 404 });
+        }
+
+        const domain = website.domain || `https://${website.subdomain}.antigravity.run`;
+        const baseDir = new URL(domain).pathname.replace(/\/+$/, '');
+        let pagePath = new URL(url).pathname;
+
+        if (baseDir && pagePath.startsWith(baseDir)) {
+            pagePath = pagePath.substring(baseDir.length);
+        }
+
+        const slug = pagePath.replace(/^\/+/, '').replace(/\/+$/, '');
 
         const page = await prisma.page.upsert({
             where: {
