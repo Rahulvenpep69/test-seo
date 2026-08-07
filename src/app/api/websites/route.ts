@@ -12,12 +12,15 @@ export async function POST(req: NextRequest) {
 
         const { goal, subdomain, builderMode, name, url } = await req.json();
 
-        if (!url) {
-            return NextResponse.json({ error: 'Website URL is required' }, { status: 400 });
-        }
-
         // Handle subdomain collision
         let finalSubdomain = subdomain || `${(name || 'site').toLowerCase().replace(/\s+/g, '-')}`;
+
+        // Ensure subdomain is alphanumeric with hyphens
+        finalSubdomain = finalSubdomain.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+
+        if (!finalSubdomain) {
+            finalSubdomain = `site-${Math.random().toString(36).substring(2, 7)}`;
+        }
 
         const existingSubdomain = await prisma.website.findUnique({
             where: { subdomain: finalSubdomain }
@@ -27,12 +30,15 @@ export async function POST(req: NextRequest) {
             finalSubdomain = `${finalSubdomain}-${Math.random().toString(36).substring(2, 7)}`;
         }
 
+        // Fallback to subdomain URL if no custom URL was provided
+        const finalUrl = url || `https://${finalSubdomain}.antigravity.run`;
+
         // 1. Create the website
         const website = await prisma.website.create({
             data: {
                 userId: session.user.id,
                 name: name || 'My New Site',
-                domain: url, // Save URL to domain field
+                domain: finalUrl, // Save URL to domain field
                 goal: goal || 'BLOG',
                 builderMode: builderMode || 'MANUAL',
                 subdomain: finalSubdomain,
