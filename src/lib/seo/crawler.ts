@@ -131,13 +131,11 @@ export class Crawler {
             try {
                 this.visited.add(normalizedForVisited);
                 console.log(`[Crawler] Processing queue item: ${url} (Normalized: ${normalizedForVisited})`);
-
                 let html = '';
                 let status = 200;
                 let effectiveUrl = url;
 
                 if (url === normalizedUrl) {
-                    // Reuse initial fetch html to save time
                     html = initialFetchHtml;
                     status = initialFetchStatus;
                 } else {
@@ -150,6 +148,16 @@ export class Crawler {
                         console.error(`[Crawler] Block or failure detected for ${url}: ${fetchResult.error || status}`);
                         results[url] = { url, html: '', status: status || 0 };
                         continue;
+                    }
+
+                    // Dynamic SPA client-side routing detection
+                    if (!this.useBrowser && html && initialFetchHtml && html.length === initialFetchHtml.length) {
+                        console.log(`[Crawler] Detected identical HTML length (${html.length}) for subpage ${url}. Switching to browser mode to render dynamic content.`);
+                        this.useBrowser = true;
+                        const browserResult = await robustFetch(url, true);
+                        html = browserResult.html;
+                        status = browserResult.status;
+                        effectiveUrl = browserResult.url || url;
                     }
                 }
 
