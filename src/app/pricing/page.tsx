@@ -213,7 +213,7 @@ export default function PricingPage() {
                             <h4 className="text-xl font-bold text-white">Secure Payments</h4>
                             <p className="text-muted-foreground text-sm mt-1">
                                 Your payments are processed securely via Razorpay. <br />
-                                We don't store your credit card information.
+                                We don&apos;t store your credit card information.
                             </p>
                         </div>
                     </div>

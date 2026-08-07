@@ -44,7 +44,7 @@ export default function AddSitePage() {
                         </div>
 
                         <p className="text-zinc-400 text-sm mb-6 leading-relaxed">
-                            Connect your website via script or credentials. Our AI will automatically crawl, detect issues, and inject fixes directly into your website's header.
+                            Connect your website via script or credentials. Our AI will automatically crawl, detect issues, and inject fixes directly into your website&apos;s header.
                         </p>
 
                         <div className="flex-1">
