@@ -130,6 +130,12 @@ model Website {
   sitemaps       Sitemap[]
   agency         Agency?      @relation("AgencyToWebsite", fields: [agencyId], references: [id])
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sitemapXml           String?
+  sitemapLastGenerated DateTime?
+  sitemapLastSubmitted DateTime?
+  sitemapUrlCount      Int?         @default(0)
+  sitemapStatus        String?      @default("PENDING")
+  sitemapAutoUpdate    Boolean      @default(false)
 
   @@map("websites")
 }
