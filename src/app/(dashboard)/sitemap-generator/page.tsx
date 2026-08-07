@@ -232,76 +232,80 @@ function SitemapGeneratorContent() {
                             </div>
 
                             {/* Stats */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                <div className="glass-card p-6 flex items-center justify-between">
-                                    <div className="space-y-1">
-                                        <p className="text-sm text-muted-foreground">Crawled URLs</p>
-                                        <div className="flex items-baseline gap-2">
-                                            <span className="text-3xl font-bold text-white">{result.summary.totalDiscovered}</span>
-                                            <span className="text-xs text-muted-foreground">found</span>
+                            {result.summary && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                    <div className="glass-card p-6 flex items-center justify-between">
+                                        <div className="space-y-1">
+                                            <p className="text-sm text-muted-foreground">Crawled URLs</p>
+                                            <div className="flex items-baseline gap-2">
+                                                <span className="text-3xl font-bold text-white">{result.summary.totalDiscovered}</span>
+                                                <span className="text-xs text-muted-foreground">found</span>
+                                            </div>
+                                        </div>
+                                        <div className="p-3 rounded-full bg-brand-500/10 text-brand-400">
+                                            <List className="w-6 h-6" />
                                         </div>
                                     </div>
-                                    <div className="p-3 rounded-full bg-brand-500/10 text-brand-400">
-                                        <List className="w-6 h-6" />
-                                    </div>
-                                </div>
-                                <div className="glass-card p-6 flex items-center justify-between border-green-500/20 bg-green-500/5">
-                                    <div className="space-y-1">
-                                        <p className="text-sm text-muted-foreground">Included URLs</p>
-                                        <div className="flex items-baseline gap-2">
-                                            <span className="text-3xl font-bold text-green-400">{result.summary.totalIncluded}</span>
-                                            <span className="text-xs text-muted-foreground">indexable</span>
+                                    <div className="glass-card p-6 flex items-center justify-between border-green-500/20 bg-green-500/5">
+                                        <div className="space-y-1">
+                                            <p className="text-sm text-muted-foreground">Included URLs</p>
+                                            <div className="flex items-baseline gap-2">
+                                                <span className="text-3xl font-bold text-green-400">{result.summary.totalIncluded}</span>
+                                                <span className="text-xs text-muted-foreground">indexable</span>
+                                            </div>
+                                        </div>
+                                        <div className="p-3 rounded-full bg-green-500/10 text-green-400">
+                                            <CheckCircle2 className="w-6 h-6" />
                                         </div>
                                     </div>
-                                    <div className="p-3 rounded-full bg-green-500/10 text-green-400">
-                                        <CheckCircle2 className="w-6 h-6" />
-                                    </div>
                                 </div>
-                            </div>
+                            )}
 
                             {/* Section: Excluded URLs */}
-                            <div className="glass-card flex flex-col overflow-hidden">
-                                <div className="p-4 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
-                                    <h3 className="font-semibold text-white flex items-center gap-2 text-sm">
-                                        <XCircle className="w-4 h-4 text-red-400" />
-                                        Excluded URLs (Cleaned)
-                                    </h3>
-                                    <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20">
-                                        {result.summary.totalExcluded} Filtered
-                                    </span>
-                                </div>
-                                <div className="max-h-[300px] overflow-y-auto custom-scroll">
-                                    <table className="w-full text-left text-xs">
-                                        <thead className="sticky top-0 bg-surface z-10 border-b border-white/10">
-                                            <tr className="text-muted-foreground bg-white/5">
-                                                <th className="px-4 py-3 font-medium">URL Path / Asset</th>
-                                                <th className="px-4 py-3 font-medium text-right">Reason</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-white/5">
-                                            {result.excluded.map((item: any, i: number) => (
-                                                <tr key={i} className="hover:bg-white/5 transition-colors group">
-                                                    <td className="px-4 py-3 font-mono opacity-80 group-hover:opacity-100 truncate max-w-[350px]">
-                                                        {item.url}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right">
-                                                        <span className="px-2 py-0.5 rounded-full bg-red-400/10 text-red-400 text-[9px] font-bold border border-red-400/20 uppercase tracking-tighter">
-                                                            {item.reason}
-                                                        </span>
-                                                    </td>
+                            {result.summary && result.excluded && (
+                                <div className="glass-card flex flex-col overflow-hidden">
+                                    <div className="p-4 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
+                                        <h3 className="font-semibold text-white flex items-center gap-2 text-sm">
+                                            <XCircle className="w-4 h-4 text-red-400" />
+                                            Excluded URLs (Cleaned)
+                                        </h3>
+                                        <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20">
+                                            {result.summary.totalExcluded} Filtered
+                                        </span>
+                                    </div>
+                                    <div className="max-h-[300px] overflow-y-auto custom-scroll">
+                                        <table className="w-full text-left text-xs">
+                                            <thead className="sticky top-0 bg-surface z-10 border-b border-white/10">
+                                                <tr className="text-muted-foreground bg-white/5">
+                                                    <th className="px-4 py-3 font-medium">URL Path / Asset</th>
+                                                    <th className="px-4 py-3 font-medium text-right">Reason</th>
                                                 </tr>
-                                            ))}
-                                            {result.excluded.length === 0 && (
-                                                <tr>
-                                                    <td colSpan={2} className="px-4 py-8 text-center text-muted-foreground italic">
-                                                        No URLs were excluded.
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/5">
+                                                {result.excluded.map((item: any, i: number) => (
+                                                    <tr key={i} className="hover:bg-white/5 transition-colors group">
+                                                        <td className="px-4 py-3 font-mono opacity-80 group-hover:opacity-100 truncate max-w-[350px]">
+                                                            {item.url}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right">
+                                                            <span className="px-2 py-0.5 rounded-full bg-red-400/10 text-red-400 text-[9px] font-bold border border-red-400/20 uppercase tracking-tighter">
+                                                                {item.reason}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {result.excluded.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={2} className="px-4 py-8 text-center text-muted-foreground italic">
+                                                            No URLs were excluded.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
                             {/* Sitemap.xml Output */}
                             <div className="glass-card flex flex-col overflow-hidden">

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Bot, Plus, Zap, Bell, Globe, Search, Mail,
-    BarChart3, Clock, Toggle2Off, CheckCircle2,
+    BarChart3, Clock, CheckCircle2,
     ChevronRight, Settings, X, Play, Pause, Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';

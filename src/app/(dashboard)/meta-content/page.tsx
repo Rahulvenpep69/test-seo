@@ -118,13 +118,14 @@ export default function MetaContentPage() {
     };
 
     const handleApply = async (row: MetaRow) => {
+        if (!activeWebsite) {
+            showToast('Please select a website first', 'info');
+            return;
+        }
+
         setRows(prev => prev.map(r => r.url === row.url ? { ...r, status: 'SAVING' } : r));
 
         try {
-            if (!activeWebsite) {
-                showToast('Please select a website first', 'info');
-                return;
-            }
 
             const res = await fetch('/api/seo/meta/update', {
                 method: 'POST',

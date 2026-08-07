@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
         const domain = website.domain || `https://${website.subdomain}.antigravity.run`;
         const baseDir = new URL(domain).pathname.replace(/\/+$/, '');
-        let pagePath = new URL(url).pathname;
+        let pagePath = new URL(url, domain).pathname;
 
         if (baseDir && pagePath.startsWith(baseDir)) {
             pagePath = pagePath.substring(baseDir.length);

@@ -7,6 +7,12 @@ interface Website {
     name: string;
     subdomain: string;
     domain?: string;
+    sitemapXml?: string | null;
+    sitemapLastGenerated?: string | Date | null;
+    sitemapLastSubmitted?: string | Date | null;
+    sitemapUrlCount?: number | null;
+    sitemapStatus?: string | null;
+    sitemapAutoUpdate?: boolean | null;
 }
 
 interface WebsiteContextType {

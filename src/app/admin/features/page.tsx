@@ -32,7 +32,7 @@ const adminNavItems = [
     {
         group: 'System',
         items: [
-            { href: '/admin/api-usage', label: 'API Management', icon: Key },
+            { href: '/admin/api', label: 'API Management', icon: Key },
             { href: '/admin/subscriptions', label: 'Subscriptions', icon: CreditCard },
             { href: '/admin/notifications', label: 'Notifications', icon: Bell },
             { href: '/admin/monitor', label: 'Uptime Monitor', icon: Activity },

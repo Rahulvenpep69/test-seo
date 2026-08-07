@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
@@ -9,7 +9,6 @@ import {
     LayoutDashboard, Globe, Search, Sparkles, ShoppingCart,
     BarChart3, Megaphone, Bot, FileText, Settings, LogOut,
     ChevronRight, Zap, Bell, CreditCard, Shield, Users, Activity,
-    Image as ImageIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -18,7 +17,6 @@ const navItems = [
         group: 'Main',
         items: [
             { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-            { href: '/add-site', label: 'Website Integration', icon: Globe },
         ],
     },
     {
@@ -28,19 +26,8 @@ const navItems = [
             { href: '/keyword-generator', label: 'Keyword Research', icon: Sparkles },
             { href: '/keywords', label: 'Rank Tracking', icon: BarChart3 },
             { href: '/competitors', label: 'Competitors', icon: Users },
-            {
-                href: '/technical-seo',
-                label: 'Technical SEO',
-                icon: Settings,
-                subItems: [
-                    { href: '/image-alt-tags', label: 'Image Alt Tags', icon: ImageIcon },
-                    { href: '/robots-generator', label: 'Robots.txt Generator', icon: Bot },
-                    { href: '/sitemap-generator', label: 'Sitemap Generator', icon: FileText },
-                ]
-            },
+            { href: '/technical-seo', label: 'Technical SEO', icon: Settings },
             { href: '/meta-content', label: 'Meta Optimizer', icon: FileText },
-            { href: '/search-console', label: 'Search Console', icon: Search },
-            { href: '/schema-generator', label: 'Schema Generator', icon: Zap },
         ],
     },
 
@@ -69,7 +56,6 @@ const navItems = [
 
 export function Sidebar() {
     const pathname = usePathname();
-    const searchParams = useSearchParams();
     const { data: session } = useSession();
     const [featureFlags, setFeatureFlags] = useState<Record<string, boolean>>({});
 
@@ -150,35 +136,8 @@ export function Sidebar() {
                                             >
                                                 <Icon className="w-4 h-4 flex-shrink-0" />
                                                 <span className="flex-1">{item.label}</span>
-                                                {isActive && !item.subItems && <ChevronRight className="w-3 h-3 opacity-60" />}
-                                                {item.subItems && <ChevronRight className={cn("w-3 h-3 opacity-60 transition-transform", isActive ? "rotate-90" : "")} />}
+                                                {isActive && <ChevronRight className="w-3 h-3 opacity-60" />}
                                             </Link>
-
-                                            {/* Sub Items */}
-                                            {item.subItems && isActive && (
-                                                <ul className="mt-1 ml-4 space-y-0.5 border-l border-white/8 pl-2">
-                                                    {item.subItems.map((sub: any) => {
-                                                        const SubIcon = sub.icon;
-                                                        const isSubActive = pathname === sub.href ||
-                                                            (pathname === '/technical-seo' && searchParams.get('tab') === 'images' && sub.href.includes('tab=images'));
-
-                                                        return (
-                                                            <li key={sub.href}>
-                                                                <Link
-                                                                    href={sub.href}
-                                                                    className={cn(
-                                                                        'sidebar-item text-xs py-1.5 opacity-70 hover:opacity-100',
-                                                                        isSubActive && 'active opacity-100'
-                                                                    )}
-                                                                >
-                                                                    <SubIcon className="w-3.5 h-3.5 flex-shrink-0" />
-                                                                    <span className="flex-1">{sub.label}</span>
-                                                                </Link>
-                                                            </li>
-                                                        );
-                                                    })}
-                                                </ul>
-                                            )}
                                         </li>
                                     );
                                 })}
