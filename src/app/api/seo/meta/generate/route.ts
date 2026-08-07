@@ -32,12 +32,9 @@ export async function POST(req: NextRequest) {
             // Clean input data from junk words and deduplicate
             const clean = (text: string) => {
                 if (!text) return '';
-                const junk = [/svg/gi, /icon/gi, /file/gi, /image/gi, /path/gi, /cls/gi, /div/gi, /span/gi, /script/gi, /style/gi, /service-svg/gi, /save-svg/gi, /speak-svg/gi, /sizzle-svg/gi, /sell-svg/gi, /marketingsell/gi];
-                let t = text;
-                junk.forEach(r => t = t.replace(r, ''));
 
                 // Deduplicate words case-insensitively
-                const words = t.split(/\s+/);
+                const words = text.split(/\s+/);
                 const uniqueWords: string[] = [];
                 const seen = new Set<string>();
                 words.forEach(w => {

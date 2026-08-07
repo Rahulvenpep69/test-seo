@@ -20,14 +20,8 @@ export class MetaAnalyzer {
 
     private cleanText(text: string): string {
         if (!text) return '';
-        // Remove common SVG/code junk identified by user
-        const junkWords = [/svg/gi, /icon/gi, /file/gi, /image/gi, /path/gi, /cls/gi, /div/gi, /span/gi, /script/gi, /style/gi, /service-svg/gi, /save-svg/gi, /speak-svg/gi, /sizzle-svg/gi, /sell-svg/gi, /marketingsell/gi];
-        let cleaned = text;
-        junkWords.forEach(regex => {
-            cleaned = cleaned.replace(regex, '');
-        });
         // Remove extra spaces and hyphens at the end
-        return cleaned.replace(/\s+/g, ' ').replace(/[-\s]+$/, '').trim();
+        return text.replace(/\s+/g, ' ').replace(/[-\s]+$/, '').trim();
     }
 
     async analyze(url: string): Promise<MetaData[]> {
