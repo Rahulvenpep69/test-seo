@@ -42,7 +42,11 @@ export async function robustFetch(url: string, useBrowser: boolean = false): Pro
     const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 
     if (useBrowser) {
-        return browserFetch(targetUrl, ua);
+        const res = await browserFetch(targetUrl, ua);
+        if (res.html && res.status > 0) {
+            return res;
+        }
+        console.warn(`[robustFetch] Browser fetch failed/unsupported for ${targetUrl}. Falling back to axios.`);
     }
 
     try {
