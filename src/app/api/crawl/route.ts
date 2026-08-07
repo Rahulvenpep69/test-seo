@@ -58,6 +58,32 @@ export async function POST(req: Request) {
 
             const simulation = calculateHeuristicPerformance(pageData.html, technical);
 
+            const pageInternalLinks = technical.internalLinks.map((link: string) => {
+                const linkWithoutSlash = link.replace(/\/$/, '');
+                const pageData = crawledPages[link] || crawledPages[linkWithoutSlash] || crawledPages[link + '/'];
+                const statusCode = pageData ? pageData.status : 200;
+                const isBroken = statusCode === 404 || statusCode >= 500;
+                return {
+                    url: link,
+                    isInternal: true,
+                    type: 'Internal',
+                    status: String(statusCode),
+                    ok: !isBroken,
+                    reason: isBroken ? `Broken internal link (Status ${statusCode})` : undefined
+                };
+            });
+
+            const pageExternalLinks = technical.externalLinks.map((link: string) => ({
+                url: link,
+                isInternal: false,
+                type: 'External',
+                status: '200',
+                ok: true
+            }));
+
+            const pageAllLinks = [...pageInternalLinks, ...pageExternalLinks];
+            const pageBrokenLinksCount = pageInternalLinks.filter(l => !l.ok).length;
+
             const { calculateSeoResults, calculateOverallScore } = await import('@/lib/seo/scoring');
             const perPageResults = calculateSeoResults({
                 url: pageUrl,
@@ -76,7 +102,7 @@ export async function POST(req: Request) {
                 sitemap,
                 // Fallbacks for crawl - Avoid hardcoding 'pass'
                 indexStatus: { indexed: false }, // Will show as warning/critical if not checked
-                brokenLinksCount: -1,           // Will show as critical/warning
+                brokenLinksCount: pageBrokenLinksCount,
                 custom404: { isCustom: false }  // Will show as warning
             });
 
@@ -95,22 +121,14 @@ export async function POST(req: Request) {
                 structuredData,
                 stats: {
                     totalLinks: technical.linkCount,
-                    allLinks: [
-                        ...technical.internalLinks.map((link: string) => ({
-                            url: link,
-                            isInternal: true,
-                            type: 'Internal',
-                            status: '200',
-                            ok: true
-                        })),
-                        ...technical.externalLinks.map((link: string) => ({
-                            url: link,
-                            isInternal: false,
-                            type: 'External',
-                            status: '200',
-                            ok: true
-                        }))
-                    ],
+                    scannedLinks: pageAllLinks.length,
+                    brokenLinks: pageBrokenLinksCount,
+                    brokenDetails: pageInternalLinks.filter(l => !l.ok).map(l => ({
+                        url: l.url,
+                        status: Number(l.status),
+                        reason: l.reason
+                    })),
+                    allLinks: pageAllLinks,
                     performance: {
                         performanceScore: simulation.score,
                         largestContentfulPaint: simulation.lcp,
@@ -151,7 +169,13 @@ export async function POST(req: Request) {
                         speedScore: avgSpeedScore,
                         crawledPages: Object.keys(results).length,
                         issuesFound: totalIssues,
-                        fullResults: JSON.stringify(results),
+                        fullResults: JSON.stringify({
+                            results,
+                            site_stats: {
+                                robots,
+                                sitemap
+                            }
+                        }),
                     }
                 });
                 console.log(`[Crawler] Saved site-wide crawl report to DB for website ${websiteId}`);

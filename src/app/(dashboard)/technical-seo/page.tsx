@@ -272,13 +272,19 @@ function DashboardContent() {
 
                         const firstUrl = Object.keys(actualResults)[0];
                         setSelectedPage(firstUrl);
+                        const resolvedSiteStats = latestCrawlReport.site_stats || parsed.site_stats || {
+                            robots: actualResults[firstUrl]?.stats?.robots || parsed.site_stats?.robots,
+                            sitemap: actualResults[firstUrl]?.stats?.sitemap || parsed.site_stats?.sitemap
+                        };
                         setLocalAnalysisResult({
                             ...actualResults[firstUrl],
                             isCrawl: true,
                             allResults: actualResults,
-                            site_stats: latestCrawlReport.site_stats || parsed.site_stats || {
-                                robots: actualResults[firstUrl]?.stats?.robots || parsed.site_stats?.robots,
-                                sitemap: actualResults[firstUrl]?.stats?.sitemap || parsed.site_stats?.sitemap
+                            site_stats: resolvedSiteStats,
+                            stats: {
+                                ...(actualResults[firstUrl]?.stats || {}),
+                                robots: resolvedSiteStats.robots || actualResults[firstUrl]?.stats?.robots,
+                                sitemap: resolvedSiteStats.sitemap || actualResults[firstUrl]?.stats?.sitemap
                             },
                             currentPage: firstUrl
                         });
@@ -354,6 +360,11 @@ function DashboardContent() {
                 isCrawl: prev?.isCrawl || false,
                 allResults: prev?.allResults || {},
                 site_stats: prev?.site_stats,
+                stats: {
+                    ...(pageResult.stats || {}),
+                    robots: prev?.site_stats?.robots || pageResult.stats?.robots,
+                    sitemap: prev?.site_stats?.sitemap || pageResult.stats?.sitemap
+                },
                 currentPage: urlToAnalyze
             }));
 
@@ -398,6 +409,11 @@ function DashboardContent() {
                 isCrawl: true,
                 allResults: data.results,
                 site_stats: data.site_stats,
+                stats: {
+                    ...(data.results[firstUrl]?.stats || {}),
+                    robots: data.site_stats?.robots,
+                    sitemap: data.site_stats?.sitemap
+                },
                 currentPage: firstUrl
             });
 
@@ -779,71 +795,77 @@ function DashboardContent() {
                         </div>
                     )}
 
-                    {activeTab === 'sitemap' && (
-                        <div className="glass-card p-6 space-y-4">
-                            <h3 className="font-semibold">Sitemap Detection</h3>
-                            <p className="text-xs text-muted-foreground font-mono bg-black/20 p-2 rounded">
-                                {currentAnalysis.stats?.sitemap?.url || 'Not detected'}
-                            </p>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                                <div className="glass-card p-4 text-center">
-                                    <p className={cn("text-2xl font-bold font-display", currentAnalysis.stats?.sitemap?.exists ? "text-green-400" : "text-red-400")}>
-                                        {currentAnalysis.stats?.sitemap?.exists ? 'Yes' : 'No'}
-                                    </p>
-                                    <p className="text-[10px] text-muted-foreground mt-1">Found in robots.txt / root</p>
+                    {activeTab === 'sitemap' && (() => {
+                        const sitemapObj = currentAnalysis.site_stats?.sitemap || currentAnalysis.stats?.sitemap;
+                        return (
+                            <div className="glass-card p-6 space-y-4">
+                                <h3 className="font-semibold">Sitemap Detection</h3>
+                                <p className="text-xs text-muted-foreground font-mono bg-black/20 p-2 rounded">
+                                    {sitemapObj?.url || 'Not detected'}
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                                    <div className="glass-card p-4 text-center">
+                                        <p className={cn("text-2xl font-bold font-display", sitemapObj?.exists ? "text-green-400" : "text-red-400")}>
+                                            {sitemapObj?.exists ? 'Yes' : 'No'}
+                                        </p>
+                                        <p className="text-[10px] text-muted-foreground mt-1">Found in robots.txt / root</p>
+                                    </div>
+                                    <div className="glass-card p-4 text-center">
+                                        <p className="text-2xl font-bold font-display text-brand-400">
+                                            {sitemapObj?.size ? `${(sitemapObj.size / 1024).toFixed(1)} KB` : '-'}
+                                        </p>
+                                        <p className="text-[10px] text-muted-foreground mt-1">File Size</p>
+                                    </div>
+                                    <div className="glass-card p-4 text-center">
+                                        <p className="text-2xl font-bold font-display text-green-400">
+                                            {currentAnalysis.stats?.discoveredUrls?.length || 0}
+                                        </p>
+                                        <p className="text-[10px] text-muted-foreground mt-1">URLs Found</p>
+                                    </div>
                                 </div>
-                                <div className="glass-card p-4 text-center">
-                                    <p className="text-2xl font-bold font-display text-brand-400">
-                                        {currentAnalysis.stats?.sitemap?.size ? `${(currentAnalysis.stats.sitemap.size / 1024).toFixed(1)} KB` : '-'}
-                                    </p>
-                                    <p className="text-[10px] text-muted-foreground mt-1">File Size</p>
-                                </div>
-                                <div className="glass-card p-4 text-center">
-                                    <p className="text-2xl font-bold font-display text-green-400">
-                                        {currentAnalysis.stats?.discoveredUrls?.length || 0}
-                                    </p>
-                                    <p className="text-[10px] text-muted-foreground mt-1">URLs Found</p>
-                                </div>
-                            </div>
-                            {!currentAnalysis.stats?.sitemap?.exists && (
-                                <div className="mt-4 p-3 rounded bg-red-500/5 border border-red-500/10">
-                                    <p className="text-[10px] text-red-300">
-                                        <span className="font-bold mr-1">Fix:</span> {SEO_INSTRUCTIONS.sitemap}
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === 'robots' && (
-                        <div className="glass-card p-6 space-y-4">
-                            <div className="flex items-center justify-between">
-                                <h3 className="font-semibold">Robots.txt Analysis</h3>
-                                <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded", currentAnalysis.stats?.robots?.exists ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400")}>
-                                    {currentAnalysis.stats?.robots?.exists ? 'Found' : 'Missing'}
-                                </span>
-                            </div>
-                            <div className="bg-black/20 p-4 rounded-lg font-mono text-xs text-muted-foreground min-h-[100px]">
-                                {currentAnalysis.stats?.robots?.isAllowed ? '✅ Googlebot is allowed to crawl this URL.' : '❌ Googlebot is blocked.'}
-                                <br /><br />
-                                {currentAnalysis.stats?.robots?.sitemaps?.length > 0 && (
-                                    <>
-                                        Sitemaps declared:
-                                        <ul className="list-disc pl-4 mt-1">
-                                            {currentAnalysis.stats.robots.sitemaps.map((s: string) => <li key={s}>{s}</li>)}
-                                        </ul>
-                                    </>
+                                {!sitemapObj?.exists && (
+                                    <div className="mt-4 p-3 rounded bg-red-500/5 border border-red-500/10">
+                                        <p className="text-[10px] text-red-300">
+                                            <span className="font-bold mr-1">Fix:</span> {SEO_INSTRUCTIONS.sitemap}
+                                        </p>
+                                    </div>
                                 )}
                             </div>
-                            {!currentAnalysis.stats?.robots?.exists && (
-                                <div className="p-3 rounded bg-red-500/5 border border-red-500/10">
-                                    <p className="text-[10px] text-red-300">
-                                        <span className="font-bold mr-1">Fix:</span> {SEO_INSTRUCTIONS.robots}
-                                    </p>
+                        );
+                    })()}
+
+                    {activeTab === 'robots' && (() => {
+                        const robotsObj = currentAnalysis.site_stats?.robots || currentAnalysis.stats?.robots;
+                        return (
+                            <div className="glass-card p-6 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="font-semibold">Robots.txt Analysis</h3>
+                                    <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded", robotsObj?.exists ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400")}>
+                                        {robotsObj?.exists ? 'Found' : 'Missing'}
+                                    </span>
                                 </div>
-                            )}
-                        </div>
-                    )}
+                                <div className="bg-black/20 p-4 rounded-lg font-mono text-xs text-muted-foreground min-h-[100px]">
+                                    {robotsObj?.isAllowed ? '✅ Googlebot is allowed to crawl this URL.' : '❌ Googlebot is blocked.'}
+                                    <br /><br />
+                                    {robotsObj?.sitemaps?.length > 0 && (
+                                        <>
+                                            Sitemaps declared:
+                                            <ul className="list-disc pl-4 mt-1">
+                                                {robotsObj.sitemaps.map((s: string) => <li key={s}>{s}</li>)}
+                                            </ul>
+                                        </>
+                                    )}
+                                </div>
+                                {!robotsObj?.exists && (
+                                    <div className="p-3 rounded bg-red-500/5 border border-red-500/10">
+                                        <p className="text-[10px] text-red-300">
+                                            <span className="font-bold mr-1">Fix:</span> {SEO_INSTRUCTIONS.robots}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
 
                     {activeTab === 'speed' && (
                         <div className="space-y-4">
