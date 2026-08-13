@@ -3,47 +3,53 @@ import axios from 'axios';
 export async function getSearchConsoleData(url: string) {
     const SEARCH_CONSOLE_API_KEY = process.env.GOOGLE_SEARCH_CONSOLE_API_KEY;
     const CUSTOM_SEARCH_API_KEY = process.env.GOOGLE_CUSTOM_SEARCH_API_KEY;
+    const CUSTOM_SEARCH_CX = process.env.GOOGLE_CUSTOM_SEARCH_CX;
 
     if (!SEARCH_CONSOLE_API_KEY) return null;
 
     try {
-        // Note: Real GSC API requires OAuth2, but for "real time accuracy" 
-        // we might use index inspection or other public endpoints if available
-        // or a mock for this demo if we don't have full OAuth setup.
-        // However, the user provided an API key (likely a Custom Search/Google Cloud key)
+        // Custom Search can be used to check indexing status if CX is available
+        if (!CUSTOM_SEARCH_CX) {
+            console.warn('Google Custom Search Engine ID (GOOGLE_CUSTOM_SEARCH_CX) is not configured.');
+            return null;
+        }
 
-        // Custom Search can be used to check indexing status
         const response = await axios.get(`https://www.googleapis.com/customsearch/v1`, {
             params: {
                 key: CUSTOM_SEARCH_API_KEY,
-                cx: 'partner-pub-0000000000000000:00000000000', // Mock CX or need real one
+                cx: CUSTOM_SEARCH_CX,
                 q: `site:${url}`
             }
         });
 
         return response.data;
-    } catch (error) {
-        console.error('GSC Data Error:', error);
+    } catch (error: any) {
+        console.error('GSC Data Error:', error.response?.data || error.message);
         return null;
     }
 }
 
 export async function checkIndexStatus(url: string) {
     const CUSTOM_SEARCH_API_KEY = process.env.GOOGLE_CUSTOM_SEARCH_API_KEY;
-    if (!CUSTOM_SEARCH_API_KEY) return { indexed: false };
+    const CUSTOM_SEARCH_CX = process.env.GOOGLE_CUSTOM_SEARCH_CX;
+    
+    if (!CUSTOM_SEARCH_API_KEY || !CUSTOM_SEARCH_CX) {
+        return { indexed: false, error: 'Google Custom Search API Key or CX not configured' };
+    }
 
     try {
         const response = await axios.get(`https://www.googleapis.com/customsearch/v1`, {
             params: {
                 key: CUSTOM_SEARCH_API_KEY,
+                cx: CUSTOM_SEARCH_CX,
                 q: `info:${url}`
             }
         });
 
         const isIndexed = response.data.items && response.data.items.length > 0;
         return { indexed: isIndexed, raw: response.data };
-    } catch (error) {
-        console.error('Index Check Error:', error);
+    } catch (error: any) {
+        console.error('Index Check Error:', error.response?.data || error.message);
         return { indexed: false, error: 'Could not verify indexing' };
     }
 }
