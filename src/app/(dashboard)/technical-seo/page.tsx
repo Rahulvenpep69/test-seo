@@ -793,9 +793,22 @@ function DashboardContent() {
                                 <div className="glass-card overflow-hidden divide-y divide-white/8">
                                     <div className="max-h-[600px] overflow-y-auto custom-scroll">
                                          {(() => {
-                                             const rootTarget = (url || '').trim().replace(/\/$/, '');
+                                             const normalizeCanonicalUrl = (uStr: string): string => {
+                                                 if (!uStr) return '';
+                                                 try {
+                                                     const u = new URL(uStr.startsWith('http') ? uStr : `https://${uStr}`);
+                                                     const host = u.hostname.replace(/^www\./, '').toLowerCase();
+                                                     const path = u.pathname.replace(/\/+$/, '') || '/';
+                                                     return `https://${host}${u.port ? ':' + u.port : ''}${path}`;
+                                                 } catch {
+                                                     return uStr;
+                                                 }
+                                             };
+
+                                             const rootTargetNorm = normalizeCanonicalUrl(url || '');
+
                                              const rawPages = Array.from(new Set([
-                                                 ...(url ? [url, `${rootTarget}/`, rootTarget] : []),
+                                                 ...(url ? [url] : []),
                                                  ...streamDiscoveredUrls,
                                                  ...Object.keys(crawlData || {}),
                                                  ...Object.keys(currentAnalysis.allResults || {}),
@@ -808,15 +821,26 @@ function DashboardContent() {
                                                  return true;
                                              });
 
+                                             const canonicalSeen = new Set<string>();
+                                             const uniquePages: string[] = [];
+
+                                             for (const p of rawPages) {
+                                                 const norm = normalizeCanonicalUrl(p);
+                                                 if (!canonicalSeen.has(norm)) {
+                                                     canonicalSeen.add(norm);
+                                                     uniquePages.push(p);
+                                                 }
+                                             }
+
                                              const homePages: string[] = [];
                                              const subPages: string[] = [];
 
-                                             for (const p of rawPages) {
-                                                 const normP = p.trim().replace(/\/$/, '');
-                                                 if (rootTarget && (p === url || p === rootTarget || p === `${rootTarget}/` || normP === rootTarget)) {
-                                                     if (!homePages.includes(p)) homePages.push(p);
+                                             for (const p of uniquePages) {
+                                                 const norm = normalizeCanonicalUrl(p);
+                                                 if (rootTargetNorm && norm === rootTargetNorm) {
+                                                     homePages.push(p);
                                                  } else {
-                                                     if (!subPages.includes(p)) subPages.push(p);
+                                                     subPages.push(p);
                                                  }
                                              }
 

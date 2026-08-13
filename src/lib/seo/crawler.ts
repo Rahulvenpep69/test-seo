@@ -162,10 +162,10 @@ export class Crawler {
 
     private normalizeUrlForVisited(url: string): string {
         try {
-            const u = new URL(url);
-            const host = u.hostname.replace(/^www\./, '');
+            const u = new URL(url.startsWith('http') ? url : `https://${url}`);
+            const host = u.hostname.replace(/^www\./, '').toLowerCase();
             const path = u.pathname.replace(/\/+$/, '') || '/';
-            return `${u.protocol}//${host}${u.port ? ':' + u.port : ''}${path}`;
+            return `https://${host}${u.port ? ':' + u.port : ''}${path}`;
         } catch (e) {
             return url;
         }
