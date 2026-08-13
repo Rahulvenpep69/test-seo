@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
+import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useWebsite } from '@/context/website-context';
 import { motion, AnimatePresence } from 'framer-motion';
