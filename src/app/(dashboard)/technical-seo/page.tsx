@@ -445,7 +445,18 @@ function DashboardContent() {
                 });
                 const data = await parseApiResponse(fallbackRes);
                 const resultsCount = Object.keys(data.results || {}).length;
+                const firstUrl = Object.keys(data.results || {})[0];
                 setCrawlData(data.results || {});
+                if (firstUrl) {
+                    setSelectedPage(firstUrl);
+                    setLocalAnalysisResult({
+                        ...data.results[firstUrl],
+                        isCrawl: true,
+                        allResults: data.results,
+                        site_stats: data.site_stats,
+                        currentPage: firstUrl
+                    });
+                }
                 setCrawlProgress({
                     totalDiscovered: resultsCount,
                     crawled: resultsCount,
@@ -463,7 +474,22 @@ function DashboardContent() {
             if (!reader) return;
 
             const decoder = new TextDecoder();
+            let accumulatedResults: Record<string, any> = {};
             let firstUrlSet = false;
+
+            const updateAnalysisState = (resultsObj: Record<string, any>) => {
+                const keys = Object.keys(resultsObj);
+                if (keys.length === 0) return;
+                const firstKey = keys[0];
+                const targetKey = selectedPage && resultsObj[selectedPage] ? selectedPage : firstKey;
+                setSelectedPage(targetKey);
+                setLocalAnalysisResult({
+                    ...resultsObj[targetKey],
+                    isCrawl: true,
+                    allResults: resultsObj,
+                    currentPage: targetKey
+                });
+            };
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -493,11 +519,9 @@ function DashboardContent() {
 
                                 if (data.latestResult?.url) {
                                     const pageUrl = data.latestResult.url;
+                                    accumulatedResults[pageUrl] = data.latestResult;
                                     setCrawlData(prev => ({ ...prev, [pageUrl]: data.latestResult }));
-                                    if (!firstUrlSet) {
-                                        setSelectedPage(pageUrl);
-                                        firstUrlSet = true;
-                                    }
+                                    updateAnalysisState(accumulatedResults);
                                 }
                             } else if (currentEventType === 'complete' || data.isComplete) {
                                 setCrawlProgress(prev => ({
@@ -507,11 +531,14 @@ function DashboardContent() {
                                     progressPercent: 100,
                                     yetToCrawl: 0,
                                 }));
+                                updateAnalysisState(accumulatedResults);
                             }
                         } catch (e) {}
                     }
                 }
             }
+
+            updateAnalysisState(accumulatedResults);
         } catch (error: any) {
             console.error('Crawl stream failed', error);
             setErrorMsg(error?.message || 'Crawl failed. Please check connection and try again.');
