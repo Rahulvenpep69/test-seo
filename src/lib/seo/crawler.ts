@@ -20,6 +20,37 @@ export interface CrawlProgressData {
     isComplete?: boolean;
 }
 
+function isValidCrawlableUrl(urlStr: string): boolean {
+    if (!urlStr) return false;
+    const lower = urlStr.toLowerCase();
+
+    if (lower.startsWith('javascript:') || lower.startsWith('mailto:') || lower.startsWith('tel:') || lower.startsWith('data:') || lower.startsWith('#')) {
+        return false;
+    }
+
+    if (lower.includes('/cdn-cgi/') || lower.includes('/email-protection')) {
+        return false;
+    }
+
+    const ignoredExtensions = [
+        '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.ico', '.bmp',
+        '.css', '.js', '.pdf', '.zip', '.tar', '.gz', '.mp3', '.mp4', '.avi',
+        '.woff', '.woff2', '.ttf', '.eot', '.xml', '.json'
+    ];
+
+    try {
+        const parsed = new URL(urlStr);
+        const pathname = parsed.pathname.toLowerCase();
+        for (const ext of ignoredExtensions) {
+            if (pathname.endsWith(ext)) return false;
+        }
+    } catch {
+        return false;
+    }
+
+    return true;
+}
+
 export class Crawler {
     private visited: Set<string> = new Set();
     private discovered: Set<string> = new Set();
@@ -228,9 +259,11 @@ export class Crawler {
                             if (!href) return;
                             try {
                                 const absoluteUrl = new URL(href, effectiveUrl);
+                                const cleanUrl = `${absoluteUrl.protocol}//${absoluteUrl.host}${absoluteUrl.pathname}`;
+                                if (!isValidCrawlableUrl(cleanUrl)) return;
+
                                 const targetHost = absoluteUrl.hostname.replace(/^www\./, '');
                                 if (targetHost === this.domain) {
-                                    const cleanUrl = `${absoluteUrl.protocol}//${absoluteUrl.host}${absoluteUrl.pathname}`;
                                     const normalizedTarget = this.normalizeUrlForVisited(cleanUrl);
                                     if (!this.discovered.has(normalizedTarget)) {
                                         this.discovered.add(normalizedTarget);

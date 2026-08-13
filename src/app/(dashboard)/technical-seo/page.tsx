@@ -378,7 +378,11 @@ function DashboardContent() {
             const data = await parseApiResponse(res);
 
             if (data.error) {
-                setErrorMsg(data.error);
+                if (!targetUrl || targetUrl === url) {
+                    setErrorMsg(data.error);
+                } else {
+                    console.warn(`[handleAnalyze] Page analysis warning for subpage ${targetUrl}:`, data.error);
+                }
                 return;
             }
 
@@ -796,7 +800,13 @@ function DashboardContent() {
                                                  ...Object.keys(crawlData || {}),
                                                  ...Object.keys(currentAnalysis.allResults || {}),
                                                  ...(currentAnalysis.stats?.discoveredUrls || []),
-                                             ])).filter(Boolean);
+                                             ])).filter(p => {
+                                                 if (!p) return false;
+                                                 const lower = p.toLowerCase();
+                                                 if (lower.includes('/cdn-cgi/') || lower.includes('/email-protection')) return false;
+                                                 if (lower.startsWith('javascript:') || lower.startsWith('mailto:') || lower.startsWith('tel:')) return false;
+                                                 return true;
+                                             });
 
                                              const homePages: string[] = [];
                                              const subPages: string[] = [];
