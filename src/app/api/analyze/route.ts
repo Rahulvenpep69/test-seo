@@ -60,7 +60,7 @@ export async function POST(req: Request) {
             checkIndexStatus(targetUrl).catch(() => ({ isIndexed: false, status: 'Check Unavailable' })),
             Promise.resolve(extractStructuredData(html)).catch(() => []),
             checkBrokenLinks(targetUrl, html).catch(() => ({ totalScanned: 0, brokenCount: 0, links: [] })),
-            getPerformanceMetrics(targetUrl).catch(() => calculateHeuristicPerformance(html)),
+            getPerformanceMetrics(targetUrl).catch(() => calculateHeuristicPerformance(html, targetUrl)),
             checkCustom404(targetUrl).catch(() => false),
             checkAssetCaching(targetUrl, html).catch(() => ({ score: 70 }))
         ]);
