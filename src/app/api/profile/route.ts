@@ -10,7 +10,7 @@ export async function GET() {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const user = await prisma.user.findUnique({
+        let user = await prisma.user.findUnique({
             where: { id: session.user.id },
             select: {
                 id: true,
@@ -31,8 +31,31 @@ export async function GET() {
             },
         });
 
+        if (!user && session.user.email) {
+            user = await prisma.user.findUnique({
+                where: { email: session.user.email },
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    image: true,
+                    role: true,
+                    createdAt: true,
+                    subscription: {
+                        select: { plan: true, status: true, currentPeriodEnd: true },
+                    },
+                    aiCredits: {
+                        select: { total: true, used: true },
+                    },
+                    _count: {
+                        select: { websites: true, notifications: true },
+                    },
+                },
+            });
+        }
+
         if (!user) {
-            return NextResponse.json({ error: 'User not found' }, { status: 404 });
+            return NextResponse.json({ error: 'User profile not found' }, { status: 404 });
         }
 
         return NextResponse.json(user);
