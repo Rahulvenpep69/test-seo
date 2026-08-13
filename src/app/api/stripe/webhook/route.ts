@@ -65,7 +65,7 @@ export async function POST(req: Request) {
             if (event.type === 'invoice.payment_succeeded') {
                 const subscription = await stripe.subscriptions.retrieve(session.subscription);
 
-                await prisma.subscription.update({
+                await prisma.subscription.updateMany({
                     where: { stripeSubscriptionId: subscription.id },
                     data: {
                         status: 'ACTIVE',
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
             if (event.type === 'customer.subscription.updated') {
                 const subscription = event.data.object as Stripe.Subscription;
 
-                await prisma.subscription.update({
+                await prisma.subscription.updateMany({
                     where: { stripeSubscriptionId: subscription.id },
                     data: {
                         status: subscription.status === 'active' ? 'ACTIVE' : 'PAST_DUE',
@@ -90,7 +90,7 @@ export async function POST(req: Request) {
             if (event.type === 'customer.subscription.deleted') {
                 const subscription = event.data.object as Stripe.Subscription;
 
-                await prisma.subscription.update({
+                await prisma.subscription.updateMany({
                     where: { stripeSubscriptionId: subscription.id },
                     data: {
                         status: 'CANCELED',

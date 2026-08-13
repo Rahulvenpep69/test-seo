@@ -5,7 +5,7 @@ This guide provides instructions for deploying the Anti-Gravity SEO Platform to 
 ## 📋 Prerequisites
 
 - **Node.js**: v18 or later
-- **Database**: PostgreSQL (Neon, Supabase, or self-hosted)
+- **Database**: MongoDB (Atlas or self-hosted)
 - **Email**: Resend API key (for notifications)
 - **Storage**: Cloudinary (for image uploads)
 - **AI**: OpenAI API key (for SEO analysis features)
@@ -19,7 +19,7 @@ Create a `.env` file in the root directory. Use the following table as a referen
 
 | Variable | Description | Required |
 | :--- | :--- | :---: |
-| `DATABASE_URL` | PostgreSQL connection string | Yes |
+| `DATABASE_URL` | MongoDB connection string | Yes |
 | `NEXTAUTH_SECRET` | Secret for auth (generate with `openssl rand -base64 32`) | Yes |
 | `NEXTAUTH_URL` | The base URL of your application | Yes |
 | `GOOGLE_CLIENT_ID` | Google OAuth Client ID | No |
@@ -104,7 +104,7 @@ If you prefer running Node.js directly on the server.
 ## 🛠️ Post-Deployment
 
 ### Database Migrations
-Always run `npx prisma generate` and `npx prisma db push` (or `npx prisma migrate deploy` for production) after updating the schema.
+Always run `npx prisma generate` and `npx prisma db push` after updating the schema.
 
 ### Cron Jobs
 The SEO crawler needs periodic triggers. If using Vercel, the `vercel.json` handles this. For VPS, add a crontab entry:
