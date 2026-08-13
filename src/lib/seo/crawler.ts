@@ -271,6 +271,8 @@ export class Crawler {
             const yetToCrawl = Math.max(0, totalDiscovered - processedCount);
             const progressPercent = totalDiscovered > 0 ? Math.min(100, Math.round((processedCount / totalDiscovered) * 100)) : 0;
 
+            const lightweightResult = latestResult ? { ...latestResult, html: '' } : undefined;
+
             onProgress({
                 totalDiscovered,
                 crawled: crawledCount,
@@ -278,7 +280,7 @@ export class Crawler {
                 yetToCrawl,
                 progressPercent,
                 currentUrl,
-                latestResult,
+                latestResult: lightweightResult,
                 discoveredUrls: Array.from(this.discovered),
                 isComplete
             });

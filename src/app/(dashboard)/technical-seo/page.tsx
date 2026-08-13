@@ -535,16 +535,16 @@ function DashboardContent() {
                                 if (data.discoveredUrls && Array.isArray(data.discoveredUrls)) {
                                     setStreamDiscoveredUrls(data.discoveredUrls);
                                 }
-                                setCrawlProgress({
-                                    totalDiscovered: data.totalDiscovered || 0,
-                                    crawled: data.crawled || 0,
-                                    yetToCrawl: data.yetToCrawl || 0,
-                                    failed: data.failed || 0,
-                                    progressPercent: data.progressPercent || 0,
-                                    currentUrl: data.currentUrl || '',
+                                setCrawlProgress(prev => ({
+                                    totalDiscovered: data.totalDiscovered !== undefined ? data.totalDiscovered : prev.totalDiscovered,
+                                    crawled: data.crawled !== undefined ? data.crawled : prev.crawled,
+                                    yetToCrawl: data.yetToCrawl !== undefined ? data.yetToCrawl : prev.yetToCrawl,
+                                    failed: data.failed !== undefined ? data.failed : prev.failed,
+                                    progressPercent: data.progressPercent !== undefined ? data.progressPercent : prev.progressPercent,
+                                    currentUrl: data.currentUrl || prev.currentUrl,
                                     isComplete: !!data.isComplete,
                                     isCrawling: !data.isComplete,
-                                });
+                                }));
 
                                 if (data.latestResult?.url) {
                                     const pageUrl = data.latestResult.url;
