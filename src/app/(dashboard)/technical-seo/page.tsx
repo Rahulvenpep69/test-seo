@@ -538,8 +538,11 @@ function DashboardContent() {
                                     updateAnalysisState(accumulatedResults);
                                 }
                             } else if (currentEventType === 'complete' || data.isComplete) {
+                                const finalCrawledCount = data.crawled !== undefined ? data.crawled : Math.max(Object.keys(accumulatedResults).length, 1);
                                 setCrawlProgress(prev => ({
                                     ...prev,
+                                    crawled: finalCrawledCount,
+                                    totalDiscovered: data.totalDiscovered !== undefined ? data.totalDiscovered : Math.max(prev.totalDiscovered, finalCrawledCount),
                                     isComplete: true,
                                     isCrawling: false,
                                     progressPercent: 100,

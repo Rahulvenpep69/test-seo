@@ -282,8 +282,8 @@ export class Crawler {
         }
 
         const startTime = Date.now();
-        const CRAWL_TIMEOUT_MS = 55000;
-        const BATCH_SIZE = 10;
+        const CRAWL_TIMEOUT_MS = 180000; // 3 minutes for comprehensive site crawling
+        const BATCH_SIZE = 25; // 25 parallel workers for 5x speedup
 
         while (queue.length > 0 && (this.maxPages <= 0 || this.visited.size < this.maxPages)) {
             if (Date.now() - startTime > CRAWL_TIMEOUT_MS) {
