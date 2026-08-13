@@ -20,7 +20,7 @@ export interface CrawlResult {
     performance?: any;
 }
 
-export function computePageTechnicalAudit(url: string, html: string, status: number): CrawlResult {
+export async function computePageTechnicalAudit(url: string, html: string, status: number): Promise<CrawlResult> {
     if (!html || status >= 400 || status === 0) {
         return {
             url,
@@ -43,8 +43,10 @@ export function computePageTechnicalAudit(url: string, html: string, status: num
     }
 
     try {
-        const technical = analyzeTechnical(html, url);
-        const structuredData = extractStructuredData(html);
+        const [technical, structuredData] = await Promise.all([
+            analyzeTechnical(html, url).catch(() => ({} as any)),
+            extractStructuredData(html).catch(() => [])
+        ]);
         const performance = calculateHeuristicPerformance(html, technical);
 
         const results: Record<string, 'pass' | 'warning' | 'critical'> = {
@@ -317,7 +319,7 @@ export class Crawler {
                         effectiveUrl = fetchResult.url || url;
 
                         if (fetchResult.error || (status >= 400 || status === 0) && (!html || html.length < 100)) {
-                            const failedItem = computePageTechnicalAudit(url, '', status || 0);
+                            const failedItem = await computePageTechnicalAudit(url, '', status || 0);
                             results[url] = failedItem;
                             failedCount++;
                             emitProgress(url, failedItem);
@@ -326,7 +328,7 @@ export class Crawler {
                     }
 
                     crawledCount++;
-                    const resultItem = computePageTechnicalAudit(effectiveUrl, html, status);
+                    const resultItem = await computePageTechnicalAudit(effectiveUrl, html, status);
                     results[url] = resultItem;
 
                     if (html && (this.maxDepth <= 0 || depth < this.maxDepth)) {
