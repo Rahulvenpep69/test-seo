@@ -116,88 +116,101 @@ export class Crawler {
         const queue: { url: string; depth: number }[] = [{ url: normalizedUrl, depth: 0 }];
         await this.fetchRobots(normalizedUrl);
 
+        // Pre-seed from sitemap.xml to instantly queue all site pages
+        try {
+            const sitemapUrl = `${normalizedUrl.replace(/\/$/, '')}/sitemap.xml`;
+            const sitemapRes = await robustFetch(sitemapUrl);
+            if (sitemapRes.status === 200 && sitemapRes.html) {
+                const $xml = cheerio.load(sitemapRes.html, { xmlMode: true });
+                $xml('loc').each((_, el) => {
+                    const loc = $xml(el).text().trim();
+                    if (loc && loc.startsWith('http')) {
+                        try {
+                            const u = new URL(loc);
+                            if (u.hostname.replace(/^www\./, '') === this.domain) {
+                                const norm = this.normalizeUrlForVisited(loc);
+                                if (!this.visited.has(norm)) {
+                                    queue.push({ url: loc, depth: 1 });
+                                }
+                            }
+                        } catch {}
+                    }
+                });
+                console.log(`[Crawler] Pre-seeded ${queue.length} URLs from sitemap.xml`);
+            }
+        } catch (e) {
+            console.log('[Crawler] Sitemap pre-seeding skipped');
+        }
+
         const startTime = Date.now();
-        const CRAWL_TIMEOUT_MS = 22000; // 22s safety ceiling to prevent Railway 502 proxy timeouts
+        const CRAWL_TIMEOUT_MS = 55000; // 55s safety limit for full site coverage
+        const BATCH_SIZE = 10; // 10 parallel worker fetches for 10x crawling speed
 
         while (queue.length > 0 && (this.maxPages <= 0 || this.visited.size < this.maxPages)) {
             if (Date.now() - startTime > CRAWL_TIMEOUT_MS) {
-                console.log(`[Crawler] Safety execution ceiling (${CRAWL_TIMEOUT_MS}ms) reached for ${normalizedUrl}. Returning ${Object.keys(results).length} crawled pages.`);
+                console.log(`[Crawler] Time ceiling reached for ${normalizedUrl}. Returning ${Object.keys(results).length} pages.`);
                 break;
             }
-            const { url, depth } = queue.shift()!;
-            const normalizedForVisited = this.normalizeUrlForVisited(url);
 
-            if (this.visited.has(normalizedForVisited)) continue;
-            if (this.maxDepth > 0 && depth > this.maxDepth) continue;
-
-            if (!this.isAllowed(url)) {
-                console.log(`Blocked by robots.txt: ${url}`);
-                continue;
+            // Extract up to BATCH_SIZE unvisited items from queue
+            const batch: { url: string; depth: number }[] = [];
+            while (queue.length > 0 && batch.length < BATCH_SIZE) {
+                const item = queue.shift()!;
+                const norm = this.normalizeUrlForVisited(item.url);
+                if (!this.visited.has(norm) && (this.maxDepth <= 0 || item.depth <= this.maxDepth) && this.isAllowed(item.url)) {
+                    this.visited.add(norm);
+                    batch.push(item);
+                }
             }
 
-            try {
-                this.visited.add(normalizedForVisited);
-                console.log(`[Crawler] Processing queue item: ${url} (Normalized: ${normalizedForVisited})`);
-                let html = '';
-                let status = 200;
-                let effectiveUrl = url;
+            if (batch.length === 0) continue;
 
-                if (url === normalizedUrl) {
-                    html = initialFetchHtml;
-                    status = initialFetchStatus;
-                } else {
-                    const fetchResult = await robustFetch(url, this.useBrowser);
-                    html = fetchResult.html;
-                    status = fetchResult.status;
-                    effectiveUrl = fetchResult.url || url;
+            // Fetch batch concurrently in parallel
+            await Promise.all(batch.map(async ({ url, depth }) => {
+                try {
+                    let html = '';
+                    let status = 200;
+                    let effectiveUrl = url;
 
-                    if (fetchResult.error || (status >= 400 || status === 0) && (!html || html.length < 100 || html.includes('Just a moment') || html.includes('cf-challenge'))) {
-                        console.error(`[Crawler] Block or failure detected for ${url}: ${fetchResult.error || status}`);
-                        results[url] = { url, html: '', status: status || 0 };
-                        continue;
-                    }
+                    if (url === normalizedUrl) {
+                        html = initialFetchHtml;
+                        status = initialFetchStatus;
+                    } else {
+                        const fetchResult = await robustFetch(url, this.useBrowser);
+                        html = fetchResult.html;
+                        status = fetchResult.status;
+                        effectiveUrl = fetchResult.url || url;
 
-                    // Dynamic SPA client-side routing detection
-                    if (!this.useBrowser && html && initialFetchHtml && html.length === initialFetchHtml.length) {
-                        console.log(`[Crawler] Detected identical HTML length (${html.length}) for subpage ${url}. Switching to browser mode to render dynamic content.`);
-                        this.useBrowser = true;
-                        const browserResult = await robustFetch(url, true);
-                        html = browserResult.html;
-                        status = browserResult.status;
-                        effectiveUrl = browserResult.url || url;
-                    }
-                }
-
-                results[url] = { url: effectiveUrl, html, status };
-
-                const $ = cheerio.load(html);
-
-                if (this.maxDepth <= 0 || depth < this.maxDepth) {
-                    $('a[href]').each((_, el) => {
-                        const href = $(el).attr('href');
-                        if (!href) return;
-
-                        try {
-                            const absoluteUrl = new URL(href, effectiveUrl);
-                            const targetHost = absoluteUrl.hostname.replace(/^www\./, '');
-
-                            if (targetHost === this.domain) {
-                                const cleanUrl = `${absoluteUrl.protocol}//${absoluteUrl.host}${absoluteUrl.pathname}`;
-                                const normalizedTarget = this.normalizeUrlForVisited(cleanUrl);
-
-                                if (!this.visited.has(normalizedTarget)) {
-                                    queue.push({ url: cleanUrl, depth: depth + 1 });
-                                }
-                            }
-                        } catch (e) {
-                            // Invalid URL
+                        if (fetchResult.error || (status >= 400 || status === 0) && (!html || html.length < 100)) {
+                            results[url] = { url, html: '', status: status || 0 };
+                            return;
                         }
-                    });
+                    }
+
+                    results[url] = { url: effectiveUrl, html, status };
+
+                    if (html && (this.maxDepth <= 0 || depth < this.maxDepth)) {
+                        const $ = cheerio.load(html);
+                        $('a[href]').each((_, el) => {
+                            const href = $(el).attr('href');
+                            if (!href) return;
+                            try {
+                                const absoluteUrl = new URL(href, effectiveUrl);
+                                const targetHost = absoluteUrl.hostname.replace(/^www\./, '');
+                                if (targetHost === this.domain) {
+                                    const cleanUrl = `${absoluteUrl.protocol}//${absoluteUrl.host}${absoluteUrl.pathname}`;
+                                    const normalizedTarget = this.normalizeUrlForVisited(cleanUrl);
+                                    if (!this.visited.has(normalizedTarget)) {
+                                        queue.push({ url: cleanUrl, depth: depth + 1 });
+                                    }
+                                }
+                            } catch (e) {}
+                        });
+                    }
+                } catch (err: any) {
+                    console.error(`[Crawler] Error crawling ${url}:`, err.message);
                 }
-            } catch (error) {
-                console.error(`Error crawling ${url}:`, error);
-                results[url] = { url, html: '', status: 500 };
-            }
+            }));
         }
 
         console.log(`[Crawler] Finished. Crawled ${Object.keys(results).length} pages.`);
