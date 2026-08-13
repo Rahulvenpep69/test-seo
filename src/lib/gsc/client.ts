@@ -1,3 +1,6 @@
+import { google } from 'googleapis';
+import { prisma } from '../prisma';
+
 export function createOAuth2Client() {
     const clientId = process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET;
@@ -56,7 +59,7 @@ export async function getAuthorizedClient(userId: string) {
     });
 
     // Handle automatic refresh
-    client.on('tokens', async (tokens) => {
+    client.on('tokens', async (tokens: any) => {
         if (tokens.access_token) {
             const data: any = {
                 accessToken: tokens.access_token,
