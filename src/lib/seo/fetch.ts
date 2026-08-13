@@ -14,16 +14,24 @@ async function browserFetch(url: string, ua: string): Promise<{ html: string; st
         const stealth = eval('require')('puppeteer-extra-plugin-stealth')();
         chromium.use(stealth);
 
-        browser = await chromium.launch({ headless: true });
+        browser = await chromium.launch({
+            headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu'
+            ]
+        });
         const context = await browser.newContext({ userAgent: ua });
         const page = await context.newPage();
 
-        const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
 
         if (!response) throw new Error('No response from browser');
-
-        // Wait a bit to let CF challenge execute if present
-        await page.waitForTimeout(3000);
 
         const html = await page.content();
         const status = response.status();
@@ -31,9 +39,11 @@ async function browserFetch(url: string, ua: string): Promise<{ html: string; st
         await browser.close();
         return { html, status, url };
     } catch (e: any) {
-        if (browser) await browser.close();
-        console.error(`[browserFetch] Browser error for ${url}:`, e);
-        return { html: '', status: 0, url, error: e.message };
+        if (browser) {
+            try { await browser.close(); } catch {}
+        }
+        console.error(`[browserFetch] Browser error for ${url}:`, e?.message || e);
+        return { html: '', status: 0, url, error: e?.message || 'Browser crash' };
     }
 }
 
@@ -42,11 +52,14 @@ export async function robustFetch(url: string, useBrowser: boolean = false): Pro
     const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 
     if (useBrowser) {
-        const res = await browserFetch(targetUrl, ua);
-        if (res.html && res.status > 0) {
-            return res;
+        try {
+            const res = await browserFetch(targetUrl, ua);
+            if (res.html && res.status > 0) {
+                return res;
+            }
+        } catch (e) {
+            console.warn(`[robustFetch] Browser fetch exception for ${targetUrl}. Falling back to axios.`);
         }
-        console.warn(`[robustFetch] Browser fetch failed/unsupported for ${targetUrl}. Falling back to axios.`);
     }
 
     try {
