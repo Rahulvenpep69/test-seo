@@ -9,6 +9,7 @@ import {
     LayoutDashboard, Globe, Search, Sparkles, ShoppingCart,
     BarChart3, Megaphone, Bot, FileText, Settings, LogOut,
     ChevronRight, Zap, Bell, CreditCard, Shield, Users, Activity,
+    Code2, MapPin, Image as ImageIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -23,14 +24,24 @@ const navItems = [
         group: 'SEO',
         items: [
             { href: '/seo', label: 'SEO Dashboard', icon: Search },
+            { href: '/technical-seo', label: 'Technical SEO', icon: Settings },
+            { href: '/search-console', label: 'Search Console', icon: Globe },
             { href: '/keyword-generator', label: 'Keyword Research', icon: Sparkles },
             { href: '/keywords', label: 'Rank Tracking', icon: BarChart3 },
             { href: '/competitors', label: 'Competitors', icon: Users },
-            { href: '/technical-seo', label: 'Technical SEO', icon: Settings },
             { href: '/meta-content', label: 'Meta Optimizer', icon: FileText },
         ],
     },
-
+    {
+        group: 'Tools',
+        items: [
+            { href: '/schema-generator', label: 'Schema Generator', icon: Code2 },
+            { href: '/sitemap-generator', label: 'Sitemap Generator', icon: MapPin },
+            { href: '/robots-generator', label: 'Robots.txt Generator', icon: FileText },
+            { href: '/image-alt-tags', label: 'Image Alt Tags', icon: ImageIcon },
+            { href: '/website-integration', label: 'Website Integration', icon: Zap },
+        ],
+    },
     {
         group: 'Analytics',
         items: [
