@@ -16,6 +16,7 @@ export interface CrawlProgressData {
     progressPercent: number;
     currentUrl: string;
     latestResult?: CrawlResult;
+    discoveredUrls?: string[];
     isComplete?: boolean;
 }
 
@@ -139,6 +140,7 @@ export class Crawler {
                 progressPercent,
                 currentUrl,
                 latestResult,
+                discoveredUrls: Array.from(this.discovered),
                 isComplete
             });
         };

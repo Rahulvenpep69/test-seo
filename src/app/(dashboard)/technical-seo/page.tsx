@@ -229,6 +229,7 @@ function DashboardContent() {
         isComplete: false,
         isCrawling: false,
     });
+    const [streamDiscoveredUrls, setStreamDiscoveredUrls] = useState<string[]>([]);
 
     const queryUrl = searchParams.get('url');
 
@@ -512,6 +513,9 @@ function DashboardContent() {
                         try {
                             const data = JSON.parse(line.replace('data: ', '').trim());
                             if (currentEventType === 'progress' || data.totalDiscovered !== undefined) {
+                                if (data.discoveredUrls && Array.isArray(data.discoveredUrls)) {
+                                    setStreamDiscoveredUrls(data.discoveredUrls);
+                                }
                                 setCrawlProgress({
                                     totalDiscovered: data.totalDiscovered || 0,
                                     crawled: data.crawled || 0,
@@ -785,20 +789,36 @@ function DashboardContent() {
                                 <div className="glass-card overflow-hidden divide-y divide-white/8">
                                     <div className="max-h-[600px] overflow-y-auto custom-scroll">
                                          {(() => {
-                                             const allDiscoveredPages = Array.from(new Set([
+                                             const rootTarget = (url || '').trim().replace(/\/$/, '');
+                                             const rawPages = Array.from(new Set([
+                                                 ...(url ? [url, `${rootTarget}/`, rootTarget] : []),
+                                                 ...streamDiscoveredUrls,
                                                  ...Object.keys(crawlData || {}),
                                                  ...Object.keys(currentAnalysis.allResults || {}),
                                                  ...(currentAnalysis.stats?.discoveredUrls || []),
-                                                 ...(url ? [url] : [])
                                              ])).filter(Boolean);
+
+                                             const homePages: string[] = [];
+                                             const subPages: string[] = [];
+
+                                             for (const p of rawPages) {
+                                                 const normP = p.trim().replace(/\/$/, '');
+                                                 if (rootTarget && (p === url || p === rootTarget || p === `${rootTarget}/` || normP === rootTarget)) {
+                                                     if (!homePages.includes(p)) homePages.push(p);
+                                                 } else {
+                                                     if (!subPages.includes(p)) subPages.push(p);
+                                                 }
+                                             }
+
+                                             const sortedPages = [...homePages, ...subPages];
 
                                              return (
                                                  <>
                                                      {/* Page count indicator */}
                                                      <div className="px-3 py-2 border-b border-white/8 text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-                                                         {allDiscoveredPages.length.toLocaleString()} Pages Discovered
+                                                         {sortedPages.length.toLocaleString()} Pages Discovered
                                                      </div>
-                                                     {allDiscoveredPages.map((p: string, i: number) => {
+                                                     {sortedPages.map((p: string, i: number) => {
                                                          const pageData = crawlData[p] || currentAnalysis.allResults?.[p];
                                                          const pageScore = pageData?.overallScore !== undefined
                                                              ? pageData.overallScore
