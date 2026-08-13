@@ -17,7 +17,7 @@ export class Crawler {
     private robots: any = null;
     private useBrowser: boolean = false;
 
-    constructor(maxPages: number = 1000, maxDepth: number = 3) {
+    constructor(maxPages: number = 0, maxDepth: number = 10) {
         this.maxPages = maxPages;
         this.maxDepth = maxDepth;
     }
@@ -116,12 +116,12 @@ export class Crawler {
         const queue: { url: string; depth: number }[] = [{ url: normalizedUrl, depth: 0 }];
         await this.fetchRobots(normalizedUrl);
 
-        while (queue.length > 0 && this.visited.size < this.maxPages) {
+        while (queue.length > 0 && (this.maxPages <= 0 || this.visited.size < this.maxPages)) {
             const { url, depth } = queue.shift()!;
             const normalizedForVisited = this.normalizeUrlForVisited(url);
 
             if (this.visited.has(normalizedForVisited)) continue;
-            if (depth > this.maxDepth) continue;
+            if (this.maxDepth > 0 && depth > this.maxDepth) continue;
 
             if (!this.isAllowed(url)) {
                 console.log(`Blocked by robots.txt: ${url}`);
@@ -165,7 +165,7 @@ export class Crawler {
 
                 const $ = cheerio.load(html);
 
-                if (depth < this.maxDepth) {
+                if (this.maxDepth <= 0 || depth < this.maxDepth) {
                     $('a[href]').each((_, el) => {
                         const href = $(el).attr('href');
                         if (!href) return;

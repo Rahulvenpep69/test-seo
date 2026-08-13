@@ -203,7 +203,7 @@ function DashboardContent() {
     // Set all as default tab
     const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'all');
     const [url, setUrl] = useState('');
-    const [crawlLimit, setCrawlLimit] = useState(50); // Crawl limit configuration
+    const [crawlLimit, setCrawlLimit] = useState(0); // 0 = Unlimited crawl (all pages)
     const [crawlData, setCrawlData] = useState<Record<string, any>>({}); // Persistent storage of all page results
     const [selectedPage, setSelectedPage] = useState<string | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -386,7 +386,7 @@ function DashboardContent() {
             const res = await fetch('/api/crawl', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: crawlUrl, limit: crawlLimit, websiteId: activeWebsite?.id }),
+                body: JSON.stringify({ url: crawlUrl, limit: 0, websiteId: activeWebsite?.id }),
             });
             const data = await res.json();
 
@@ -457,16 +457,10 @@ function DashboardContent() {
                         />
                     </div>
                     
-                    <select
-                        value={crawlLimit}
-                        onChange={(e) => setCrawlLimit(Number(e.target.value))}
-                        className="bg-white/5 border border-white/10 rounded-xl px-4 h-[54px] text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500/40 transition-all cursor-pointer shrink-0"
-                    >
-                        <option value={10} className="bg-zinc-950 text-white">10 Pages</option>
-                        <option value={30} className="bg-zinc-950 text-white">30 Pages</option>
-                        <option value={50} className="bg-zinc-950 text-white">50 Pages</option>
-                        <option value={100} className="bg-zinc-950 text-white">100 Pages</option>
-                    </select>
+                    <div className="flex items-center gap-2 bg-brand-500/10 border border-brand-500/20 text-brand-400 px-4 h-[54px] rounded-xl text-sm font-semibold shrink-0">
+                        <Globe className="w-4 h-4 text-brand-400" />
+                        <span>All Pages (Unlimited)</span>
+                    </div>
 
                     <button
                         onClick={() => handleCrawl()}

@@ -19,7 +19,7 @@ import { calculateHeuristicPerformance } from '@/lib/seo/performance';
 
 export async function POST(req: Request) {
     try {
-        const { url, limit = 50, websiteId } = await req.json();
+        const { url, limit = 0, websiteId } = await req.json();
 
         if (!url) {
             return NextResponse.json({ error: 'URL is required' }, { status: 400 });
@@ -34,7 +34,8 @@ export async function POST(req: Request) {
             normalizedUrl = `https://${normalizedUrl}`;
         }
 
-        const crawler = new Crawler(limit);
+        const maxPagesLimit = (limit === 'all' || limit === 0 || limit === null) ? 0 : Number(limit);
+        const crawler = new Crawler(maxPagesLimit);
         const crawledPages = await crawler.crawl(normalizedUrl);
 
         const results: Record<string, any> = {};
@@ -140,6 +141,12 @@ export async function POST(req: Request) {
                     }
                 }
             };
+        }
+
+        if (Object.keys(results).length === 0) {
+            return NextResponse.json({
+                error: `Failed to fetch or crawl ${normalizedUrl}. Make sure the site is online, publicly accessible, and not blocking automated requests.`
+            }, { status: 400 });
         }
 
         // Persist to DB if websiteId is provided and we have crawl results
