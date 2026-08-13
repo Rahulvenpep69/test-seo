@@ -1,10 +1,7 @@
-import { google } from 'googleapis';
-import { prisma } from '../prisma';
-
 export function createOAuth2Client() {
-    const clientId = process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_ID;
+    const clientId = process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'https://test-seo-production.up.railway.app';
     const redirectUri = `${appUrl.replace(/\/$/, '')}/api/gsc/callback`;
 
     if (!clientId) {
