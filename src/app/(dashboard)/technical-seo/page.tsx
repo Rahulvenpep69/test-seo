@@ -503,21 +503,35 @@ function DashboardContent() {
                 });
             };
 
+            let buffer = '';
+
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
 
-                const chunk = decoder.decode(value, { stream: true });
-                const lines = chunk.split('\n');
+                buffer += decoder.decode(value, { stream: true });
+                const events = buffer.split('\n\n');
+                buffer = events.pop() || '';
 
-                let currentEventType = '';
-                for (const line of lines) {
-                    if (line.startsWith('event: ')) {
-                        currentEventType = line.replace('event: ', '').trim();
-                    } else if (line.startsWith('data: ')) {
+                for (const rawEvent of events) {
+                    if (!rawEvent.trim()) continue;
+                    const lines = rawEvent.split('\n');
+                    let eventType = 'message';
+                    let dataStr = '';
+
+                    for (const line of lines) {
+                        if (line.startsWith('event:')) {
+                            eventType = line.slice(6).trim();
+                        } else if (line.startsWith('data:')) {
+                            dataStr += line.slice(5).trim();
+                        }
+                    }
+
+                    if (dataStr) {
                         try {
-                            const data = JSON.parse(line.replace('data: ', '').trim());
-                            if (currentEventType === 'progress' || data.totalDiscovered !== undefined) {
+                            const data = JSON.parse(dataStr);
+
+                            if (eventType === 'progress' || data.totalDiscovered !== undefined) {
                                 if (data.discoveredUrls && Array.isArray(data.discoveredUrls)) {
                                     setStreamDiscoveredUrls(data.discoveredUrls);
                                 }
@@ -538,7 +552,9 @@ function DashboardContent() {
                                     setCrawlData(prev => ({ ...prev, [pageUrl]: data.latestResult }));
                                     updateAnalysisState(accumulatedResults);
                                 }
-                            } else if (currentEventType === 'complete' || data.isComplete) {
+                            }
+
+                            if (eventType === 'complete' || data.isComplete) {
                                 const finalCrawledCount = data.crawled !== undefined ? data.crawled : Math.max(Object.keys(accumulatedResults).length, 1);
                                 setCrawlProgress(prev => ({
                                     ...prev,
@@ -556,6 +572,15 @@ function DashboardContent() {
                 }
             }
 
+            setCrawlProgress(prev => ({
+                ...prev,
+                crawled: Math.max(prev.crawled, Object.keys(accumulatedResults).length),
+                totalDiscovered: Math.max(prev.totalDiscovered, Object.keys(accumulatedResults).length),
+                isComplete: true,
+                isCrawling: false,
+                progressPercent: 100,
+                yetToCrawl: 0,
+            }));
             updateAnalysisState(accumulatedResults);
         } catch (error: any) {
             console.error('Crawl stream failed', error);
