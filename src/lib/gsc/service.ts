@@ -293,7 +293,7 @@ export class GscService {
             where: { websiteId }
         });
 
-        if (!property) throw new Error('Property not linked');
+        if (!property) return [];
 
         const res = await client.sitemaps.list({
             siteUrl: property.propertyUrl
@@ -307,7 +307,24 @@ export class GscService {
             where: { websiteId }
         });
 
-        if (!property) throw new Error('Property not linked');
+        if (!property) {
+            return {
+                isLinked: false,
+                property: null,
+                sitemaps: [],
+                indexingSummary: {
+                    totalSubmitted: 0,
+                    totalIndexed: 0,
+                    status: 'Not Linked',
+                },
+                performanceSummary: {
+                    totalClicks: 0,
+                    totalImpressions: 0,
+                    avgCtr: 0,
+                    avgPosition: 0,
+                },
+            };
+        }
 
         const sitemaps = await this.getSitemaps(userId, websiteId);
         const performance = await this.getWebsitePerformance(websiteId);

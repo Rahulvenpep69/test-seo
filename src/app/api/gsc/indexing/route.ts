@@ -21,6 +21,15 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json(summary);
     } catch (error: any) {
+        if (error.message === 'Property not linked' || error.message?.includes('not linked') || error.message?.includes('token not found')) {
+            return NextResponse.json({
+                isLinked: false,
+                property: null,
+                sitemaps: [],
+                indexingSummary: { totalSubmitted: 0, totalIndexed: 0, status: 'Not Linked' },
+                performanceSummary: { totalClicks: 0, totalImpressions: 0, avgCtr: 0, avgPosition: 0 }
+            });
+        }
         console.error('GSC Indexing API Error:', error);
         return NextResponse.json({ error: error.message || 'Failed to fetch indexing summary' }, { status: 500 });
     }
