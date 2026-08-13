@@ -50,16 +50,16 @@ export async function computePageTechnicalAudit(url: string, html: string, statu
         const performance = calculateHeuristicPerformance(html, technical);
 
         const results: Record<string, 'pass' | 'warning' | 'critical'> = {
-            'meta-title': technical.title && technical.title.length >= 30 && technical.title.length <= 65 ? 'pass' : technical.title ? 'warning' : 'critical',
-            'meta-desc': technical.metaDescription && technical.metaDescription.length >= 120 && technical.metaDescription.length <= 160 ? 'pass' : technical.metaDescription ? 'warning' : 'critical',
-            'h1-test': technical.h1 && technical.h1.length === 1 ? 'pass' : technical.h1 && technical.h1.length > 1 ? 'warning' : 'critical',
-            'canonical': technical.canonical ? 'pass' : 'critical',
-            'schema': structuredData && structuredData.length > 0 ? 'pass' : 'warning',
-            'viewport': technical.viewport ? 'pass' : 'critical',
-            'og-tags': technical.openGraph && Object.keys(technical.openGraph).length > 0 ? 'pass' : 'warning',
-            'images-alt': technical.imagesWithoutAlt === 0 ? 'pass' : technical.imagesWithoutAlt < 5 ? 'warning' : 'critical',
+            'meta-title': technical?.title && technical.title.length >= 30 && technical.title.length <= 65 ? 'pass' : technical?.title ? 'warning' : 'critical',
+            'meta-desc': technical?.metaDescription && technical.metaDescription.length >= 120 && technical.metaDescription.length <= 160 ? 'pass' : technical?.metaDescription ? 'warning' : 'critical',
+            'h1-test': technical?.h1Count === 1 ? 'pass' : technical?.h1Count > 1 ? 'warning' : 'critical',
+            'canonical': technical?.canonical || technical?.hasCanonicalTag ? 'pass' : 'critical',
+            'schema': Array.isArray(structuredData) && structuredData.length > 0 ? 'pass' : 'warning',
+            'viewport': technical?.hasViewport || technical?.viewportContent ? 'pass' : 'critical',
+            'og-tags': technical?.hasOgTitle || technical?.hasOgImage ? 'pass' : 'warning',
+            'images-alt': technical?.imagesWithoutAlt === 0 ? 'pass' : (technical?.imagesWithoutAlt || 0) < 5 ? 'warning' : 'critical',
             'ssl-security': url.startsWith('https://') ? 'pass' : 'critical',
-            'language': technical.language ? 'pass' : 'warning',
+            'language': technical?.language || technical?.hasLangAttr ? 'pass' : 'warning',
         };
 
         const passes = Object.values(results).filter(v => v === 'pass').length;
