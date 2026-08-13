@@ -1,4 +1,7 @@
 import axios from 'axios';
+import https from 'https';
+
+const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 const USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
@@ -74,7 +77,8 @@ export async function robustFetch(url: string, useBrowser: boolean = false): Pro
             },
             timeout: 10000,
             validateStatus: () => true, // Accept all status codes
-            maxRedirects: 5
+            maxRedirects: 5,
+            httpsAgent
         });
 
         const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
@@ -125,7 +129,7 @@ export async function robustFetch(url: string, useBrowser: boolean = false): Pro
         // Fallback to basic fetch if axios fails completely
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
 
             const res = await fetch(targetUrl, {
                 headers: { 'User-Agent': ua },
@@ -136,7 +140,17 @@ export async function robustFetch(url: string, useBrowser: boolean = false): Pro
             const html = await res.text();
             return { html, status: res.status, url: res.url };
         } catch (fetchError: any) {
-            return { html: '', status: 0, url: targetUrl, error: error.message };
+            let friendlyError = error?.message || 'Failed to reach website';
+            if (friendlyError.includes('ENOTFOUND')) {
+                friendlyError = 'Domain not found or DNS resolution failed. Please check the website URL.';
+            } else if (friendlyError.includes('ETIMEDOUT') || friendlyError.includes('timeout')) {
+                friendlyError = 'Connection timed out while attempting to reach the website.';
+            } else if (friendlyError.includes('ECONNREFUSED')) {
+                friendlyError = 'Connection refused by destination web server.';
+            } else if (friendlyError.includes('certificate')) {
+                friendlyError = 'SSL certificate error on destination web server.';
+            }
+            return { html: '', status: 0, url: targetUrl, error: friendlyError };
         }
     }
 }
