@@ -255,28 +255,41 @@ export class Crawler {
         };
 
         try {
-            const sitemapUrl = `${normalizedUrl.replace(/\/$/, '')}/sitemap.xml`;
-            const sitemapRes = await robustFetch(sitemapUrl);
-            if (sitemapRes.status === 200 && sitemapRes.html) {
-                const $xml = cheerio.load(sitemapRes.html, { xmlMode: true });
-                $xml('loc').each((_, el) => {
-                    const loc = $xml(el).text().trim();
-                    if (loc && loc.startsWith('http')) {
+            const extractSitemapLocs = async (targetSitemapUrl: string, depth = 0) => {
+                if (depth > 2) return;
+                const sitemapRes = await robustFetch(targetSitemapUrl);
+                if (sitemapRes.status === 200 && sitemapRes.html) {
+                    const $xml = cheerio.load(sitemapRes.html, { xmlMode: true });
+                    const locs: string[] = [];
+                    $xml('loc').each((_, el) => {
+                        const loc = $xml(el).text().trim();
+                        if (loc && loc.startsWith('http')) locs.push(loc);
+                    });
+
+                    for (const loc of locs) {
                         try {
                             const u = new URL(loc);
-                            if (u.hostname.replace(/^www\./, '') === this.domain) {
-                                const norm = this.normalizeUrlForVisited(loc);
-                                if (!this.discovered.has(norm)) {
-                                    this.discovered.add(norm);
-                                    queue.push({ url: loc, depth: 1 });
+                            if (u.hostname.replace(/^www\./, '').toLowerCase() === this.domain) {
+                                if (loc.endsWith('.xml') || loc.includes('sitemap')) {
+                                    // Child sitemap index - parse recursively for inner page URLs
+                                    await extractSitemapLocs(loc, depth + 1);
+                                } else if (isValidCrawlableUrl(loc)) {
+                                    const norm = this.normalizeUrlForVisited(loc);
+                                    if (!this.discovered.has(norm)) {
+                                        this.discovered.add(norm);
+                                        queue.push({ url: loc, depth: 1 });
+                                    }
                                 }
                             }
                         } catch {}
                     }
-                });
-                console.log(`[Crawler] Pre-seeded ${queue.length} URLs from sitemap.xml`);
-                emitProgress(normalizedUrl);
-            }
+                }
+            };
+
+            const primarySitemapUrl = `${normalizedUrl.replace(/\/$/, '')}/sitemap.xml`;
+            await extractSitemapLocs(primarySitemapUrl);
+            console.log(`[Crawler] Pre-seeded ${queue.length} URLs from sitemap index`);
+            emitProgress(normalizedUrl);
         } catch (e) {
             console.log('[Crawler] Sitemap pre-seeding skipped');
         }
