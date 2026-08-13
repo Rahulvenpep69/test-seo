@@ -59,7 +59,7 @@ export async function robustFetch(url: string, useBrowser: boolean = false): Pro
                 'Cache-Control': 'no-cache',
                 'Pragma': 'no-cache',
             },
-            timeout: 30000,
+            timeout: 10000,
             validateStatus: () => true, // Accept all status codes
             maxRedirects: 5
         });

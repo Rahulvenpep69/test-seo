@@ -116,7 +116,14 @@ export class Crawler {
         const queue: { url: string; depth: number }[] = [{ url: normalizedUrl, depth: 0 }];
         await this.fetchRobots(normalizedUrl);
 
+        const startTime = Date.now();
+        const CRAWL_TIMEOUT_MS = 22000; // 22s safety ceiling to prevent Railway 502 proxy timeouts
+
         while (queue.length > 0 && (this.maxPages <= 0 || this.visited.size < this.maxPages)) {
+            if (Date.now() - startTime > CRAWL_TIMEOUT_MS) {
+                console.log(`[Crawler] Safety execution ceiling (${CRAWL_TIMEOUT_MS}ms) reached for ${normalizedUrl}. Returning ${Object.keys(results).length} crawled pages.`);
+                break;
+            }
             const { url, depth } = queue.shift()!;
             const normalizedForVisited = this.normalizeUrlForVisited(url);
 
