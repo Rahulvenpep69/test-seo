@@ -80,19 +80,8 @@ export default function DashboardPage() {
     };
 
     const overallScore = analysisResult
-        ? (() => {
-            const totalChecks = Object.keys(analysisResult.results || {}).length;
-            const passes = Object.values(analysisResult.results || {}).filter((v: any) => v === 'pass').length;
-            const warnings = Object.values(analysisResult.results || {}).filter((v: any) => v === 'warning').length;
-            const issuePoints = (passes * 3) + warnings;
-            const issueMax = totalChecks * 3;
-            const daPoints = (analysisResult.stats?.authority?.domainAuthority || 0) * 0.3;
-            const spamPoints = (100 - (analysisResult.stats?.authority?.spamScore || 0)) * 0.2;
-            const earnedPoints = issuePoints + daPoints + spamPoints;
-            const maxPoints = issueMax + 50;
-            return Math.min(100, Math.floor((earnedPoints / maxPoints) * 100));
-        })()
-        : (latestReport?.overallScore || 0);
+        ? (analysisResult.overallScore !== undefined ? analysisResult.overallScore : (analysisResult.score !== undefined ? analysisResult.score : 80))
+        : (latestReport?.overallScore || 80);
 
     const totalIssues = analysisResult
         ? Object.values(analysisResult.results || {}).filter((v: any) => v === 'critical' || v === 'warning').length
@@ -349,16 +338,20 @@ export default function DashboardPage() {
                                                 <div className="w-11 h-11 rounded-full border-2 border-brand-500 flex items-center justify-center">
                                                     <Loader2 className="w-4 h-4 text-brand-400 animate-spin" />
                                                 </div>
-                                            ) : (
-                                                <div className={cn(
-                                                    "w-11 h-11 rounded-full border-2 flex items-center justify-center text-xs font-bold",
-                                                    isActive && analysisResult
-                                                        ? (overallScore >= 80 ? "border-green-500 text-green-400" : overallScore >= 50 ? "border-brand-500 text-brand-400" : "border-red-500 text-red-400")
-                                                        : (score >= 80 ? "border-green-500 text-green-400" : score >= 50 ? "border-brand-500 text-brand-400" : "border-red-500 text-red-400")
-                                                )}>
-                                                    {isActive && analysisResult ? overallScore : score}
-                                                </div>
-                                            )}
+                                            ) : (() => {
+                                                const itemScore = (isActive && analysisResult)
+                                                    ? overallScore
+                                                    : (score || site.seoReports?.[0]?.overallScore || (isActive ? overallScore : 80));
+
+                                                return (
+                                                    <div className={cn(
+                                                        "w-11 h-11 rounded-full border-2 flex items-center justify-center text-xs font-bold",
+                                                        itemScore >= 80 ? "border-green-500 text-green-400" : itemScore >= 50 ? "border-brand-500 text-brand-400" : "border-red-500 text-red-400"
+                                                    )}>
+                                                        {itemScore}
+                                                    </div>
+                                                );
+                                            })()}
 
                                             <div className="h-4 w-px bg-white/10 mx-1" />
 
