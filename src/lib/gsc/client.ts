@@ -1,15 +1,20 @@
 import { google } from 'googleapis';
 import { prisma } from '../prisma';
 
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const REDIRECT_URI = `${process.env.NEXT_PUBLIC_APP_URL}/api/gsc/callback`;
-
 export function createOAuth2Client() {
+    const clientId = process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
+    const redirectUri = `${appUrl.replace(/\/$/, '')}/api/gsc/callback`;
+
+    if (!clientId) {
+        console.error('[GSC_OAUTH] GOOGLE_CLIENT_ID is missing in environment variables');
+    }
+
     return new google.auth.OAuth2(
-        GOOGLE_CLIENT_ID,
-        GOOGLE_CLIENT_SECRET,
-        REDIRECT_URI
+        clientId,
+        clientSecret,
+        redirectUri
     );
 }
 
