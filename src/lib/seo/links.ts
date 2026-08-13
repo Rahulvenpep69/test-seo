@@ -62,6 +62,6 @@ export async function checkBrokenLinks(url: string, html?: string) {
             allLinks
         };
     } catch (error) {
-        return { totalLinks: 0, brokenLinks: 0, details: [], error: 'Failed' };
+        return { totalLinks: 0, scannedLinks: 0, brokenLinks: 0, brokenDetails: [], allLinks: [] };
     }
 }
