@@ -59,7 +59,7 @@ export async function POST(req: Request) {
             analyzeTechnical(html, targetUrl).catch(() => ({})),
             checkIndexStatus(targetUrl).catch(() => ({ isIndexed: false, status: 'Check Unavailable' })),
             Promise.resolve(extractStructuredData(html)).catch(() => []),
-            checkBrokenLinks(targetUrl, html).catch(() => ({ totalScanned: 0, brokenCount: 0, links: [] })),
+            checkBrokenLinks(targetUrl, html).catch(() => ({ totalLinks: 0, scannedLinks: 0, brokenLinks: 0, brokenDetails: [], allLinks: [] })),
             getPerformanceMetrics(targetUrl).catch(() => calculateHeuristicPerformance(html, targetUrl)),
             checkCustom404(targetUrl).catch(() => false),
             checkAssetCaching(targetUrl, html).catch(() => ({ score: 70 }))
