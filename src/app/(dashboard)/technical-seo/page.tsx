@@ -784,59 +784,66 @@ function DashboardContent() {
                                 <h3 className="font-semibold px-2">Discovered Pages</h3>
                                 <div className="glass-card overflow-hidden divide-y divide-white/8">
                                     <div className="max-h-[600px] overflow-y-auto custom-scroll">
-                                        {/* Page count indicator */}
-                                        <div className="px-3 py-2 border-b border-white/8 text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-                                            {currentAnalysis.isCrawl ? Object.keys(currentAnalysis.allResults || {}).length : (currentAnalysis.stats?.discoveredUrls?.length || 1)} Pages Discovered
-                                        </div>
                                          {(() => {
-                                             const pages = currentAnalysis.isCrawl
-                                                 ? Object.keys(currentAnalysis.allResults || {})
-                                                 : Array.from(new Set([(url || ''), ...(currentAnalysis.stats?.discoveredUrls || [])]));
+                                             const allDiscoveredPages = Array.from(new Set([
+                                                 ...Object.keys(crawlData || {}),
+                                                 ...Object.keys(currentAnalysis.allResults || {}),
+                                                 ...(currentAnalysis.stats?.discoveredUrls || []),
+                                                 ...(url ? [url] : [])
+                                             ])).filter(Boolean);
 
-                                             return pages.map((p: string, i: number) => {
-                                                 const pageData = crawlData[p] || currentAnalysis.allResults?.[p];
-                                                 const pageScore = pageData?.overallScore !== undefined
-                                                     ? pageData.overallScore
-                                                     : pageData?.score !== undefined
-                                                         ? pageData.score
-                                                         : pageData?.status === 200
-                                                             ? (pageData.html?.includes('<title') ? 85 : 70)
-                                                             : pageData?.status >= 400 || pageData?.status === 0
-                                                                 ? 0
-                                                                 : 70;
+                                             return (
+                                                 <>
+                                                     {/* Page count indicator */}
+                                                     <div className="px-3 py-2 border-b border-white/8 text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                                                         {allDiscoveredPages.length.toLocaleString()} Pages Discovered
+                                                     </div>
+                                                     {allDiscoveredPages.map((p: string, i: number) => {
+                                                         const pageData = crawlData[p] || currentAnalysis.allResults?.[p];
+                                                         const pageScore = pageData?.overallScore !== undefined
+                                                             ? pageData.overallScore
+                                                             : pageData?.score !== undefined
+                                                                 ? pageData.score
+                                                                 : pageData?.status === 200
+                                                                     ? (pageData.html?.includes('<title') ? 85 : 70)
+                                                                     : pageData?.status >= 400 || pageData?.status === 0
+                                                                         ? 0
+                                                                         : 70;
 
-                                                 return (
-                                                     <button
-                                                         key={i}
-                                                         onClick={() => {
-                                                             setSelectedPage(p);
-                                                             if (pageData && pageData.results) {
-                                                                 setLocalAnalysisResult({
-                                                                     ...pageData,
-                                                                     isCrawl: currentAnalysis.isCrawl,
-                                                                     allResults: currentAnalysis.allResults,
-                                                                     site_stats: currentAnalysis.site_stats,
-                                                                     currentPage: p
-                                                                 });
-                                                             } else {
-                                                                 handleAnalyze(p);
-                                                             }
-                                                         }}
-                                                         className={cn(
-                                                             "w-full text-left px-3 py-2.5 text-xs transition-colors hover:bg-white/5 flex items-center gap-2",
-                                                             selectedPage === p ? "bg-brand-500/5 text-brand-400 font-medium border-l-2 border-brand-500" : "text-muted-foreground border-l-2 border-transparent"
-                                                         )}
-                                                     >
-                                                         <span className="flex-1 truncate min-w-0">{p}</span>
-                                                         <span className={cn(
-                                                             "text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0",
-                                                             pageScore >= 80 ? "bg-green-500/20 text-green-400" :
-                                                                 pageScore >= 50 ? "bg-yellow-500/20 text-yellow-400" :
-                                                                     "bg-red-500/20 text-red-400"
-                                                         )}>{pageScore}</span>
-                                                     </button>
-                                                 );
-                                             });
+                                                         return (
+                                                             <button
+                                                                 key={i}
+                                                                 onClick={() => {
+                                                                     setSelectedPage(p);
+                                                                     if (pageData && pageData.results) {
+                                                                         setLocalAnalysisResult({
+                                                                             ...pageData,
+                                                                             isCrawl: true,
+                                                                             allResults: crawlData,
+                                                                             site_stats: currentAnalysis.site_stats,
+                                                                             currentPage: p
+                                                                         });
+                                                                     } else {
+                                                                         handleAnalyze(p);
+                                                                     }
+                                                                 }}
+                                                                 className={cn(
+                                                                     "w-full text-left px-3 py-2.5 text-xs transition-colors hover:bg-white/5 flex items-center gap-2",
+                                                                     selectedPage === p ? "bg-brand-500/5 text-brand-400 font-medium border-l-2 border-brand-500" : "text-muted-foreground border-l-2 border-transparent"
+                                                                 )}
+                                                             >
+                                                                 <span className="flex-1 truncate min-w-0">{p}</span>
+                                                                 <span className={cn(
+                                                                     "text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0",
+                                                                     pageScore >= 80 ? "bg-green-500/20 text-green-400" :
+                                                                         pageScore >= 50 ? "bg-yellow-500/20 text-yellow-400" :
+                                                                             "bg-red-500/20 text-red-400"
+                                                                 )}>{pageScore}</span>
+                                                             </button>
+                                                         );
+                                                     })}
+                                                 </>
+                                             );
                                          })()}
 
                                     </div>
