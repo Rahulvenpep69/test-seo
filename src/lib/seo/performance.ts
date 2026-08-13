@@ -73,11 +73,11 @@ export async function getPerformanceMetrics(url: string) {
         if (isQuotaError) {
             // Set the quota backoff so we skip the API for the next hour
             quotaExceededUntil = now + QUOTA_BACKOFF_MS;
-            console.warn('[PageSpeed] Daily quota exceeded. Switching to heuristic fallback for 1 hour.');
+            console.warn('[PageSpeed] Daily quota limit reached. Using heuristic fallback.');
         } else if (isAuthError) {
-            console.error('[PageSpeed] API key is invalid or unauthorized.');
+            console.warn('[PageSpeed] Insights API key unauthorized. Using heuristic fallback.');
         } else {
-            console.warn('[PageSpeed] API call failed (status:', status, '). Using heuristic fallback.');
+            console.log('[PageSpeed] Insights API unavailable or timed out. Using heuristic analyzer.');
         }
 
         return {
