@@ -42,7 +42,7 @@ export async function POST(req: Request) {
             }, { status: 400 });
         }
 
-        // 2. Run All checks in parallel for "real time accuracy"
+        // 2. Run All checks in parallel for "real time accuracy" with fail-safe fallbacks
         const [
             robots,
             sitemap,
@@ -54,15 +54,15 @@ export async function POST(req: Request) {
             custom404,
             assets
         ] = await Promise.all([
-            checkRobots(targetUrl),
-            checkSitemap(targetUrl),
-            analyzeTechnical(html, targetUrl),
-            checkIndexStatus(targetUrl),
-            extractStructuredData(html),
-            checkBrokenLinks(targetUrl, html),
-            getPerformanceMetrics(targetUrl),
-            checkCustom404(targetUrl),
-            checkAssetCaching(targetUrl, html)
+            checkRobots(targetUrl).catch(() => ({ exists: false, isAllowed: true })),
+            checkSitemap(targetUrl).catch(() => ({ exists: false })),
+            analyzeTechnical(html, targetUrl).catch(() => ({})),
+            checkIndexStatus(targetUrl).catch(() => ({ isIndexed: false, status: 'Check Unavailable' })),
+            Promise.resolve(extractStructuredData(html)).catch(() => []),
+            checkBrokenLinks(targetUrl, html).catch(() => ({ totalScanned: 0, brokenCount: 0, links: [] })),
+            getPerformanceMetrics(targetUrl).catch(() => calculateHeuristicPerformance(html)),
+            checkCustom404(targetUrl).catch(() => false),
+            checkAssetCaching(targetUrl, html).catch(() => ({ score: 70 }))
         ]);
 
         // Extract security headers from a HEAD request

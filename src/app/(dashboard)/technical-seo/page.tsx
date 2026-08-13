@@ -322,18 +322,34 @@ function DashboardContent() {
         return () => { isMounted = false; };
     }, [queryUrl, activeWebsite?.id]);
 
+    async function parseApiResponse(res: Response) {
+        const text = await res.text();
+        let data: any;
+        try {
+            data = JSON.parse(text);
+        } catch {
+            throw new Error(`Website or API server returned invalid response (${res.status}). Please check that the URL is active and accessible.`);
+        }
+        if (!res.ok && data?.error) {
+            throw new Error(data.error);
+        }
+        return data;
+    }
+
     async function handleAnalyze(targetUrl?: string) {
         const urlToAnalyze = targetUrl || url;
         if (!urlToAnalyze) return;
+
         setIsPageAnalyzing(true);
         setErrorMsg(null);
+
         try {
             const res = await fetch('/api/analyze', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url: urlToAnalyze }),
             });
-            const data = await res.json();
+            const data = await parseApiResponse(res);
 
             if (data.error) {
                 setErrorMsg(data.error);
@@ -389,7 +405,7 @@ function DashboardContent() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url: crawlUrl, limit: 0, websiteId: activeWebsite?.id }),
             });
-            const data = await res.json();
+            const data = await parseApiResponse(res);
 
             if (data.error) {
                 setErrorMsg(data.error);
