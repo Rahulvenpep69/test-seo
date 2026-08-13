@@ -18,6 +18,7 @@ export function getAuthUrl() {
     const scopes = [
         'https://www.googleapis.com/auth/webmasters.readonly',
         'https://www.googleapis.com/auth/webmasters',
+        'https://www.googleapis.com/auth/analytics.readonly',
     ];
 
     return client.generateAuthUrl({
