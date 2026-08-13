@@ -42,11 +42,14 @@ export async function getAuthorizedClient(userId: string) {
         throw new Error('GSC not connected');
     }
 
+    const expiryVal = Number(gscToken.expiryDate);
+    const expiryDateMs = expiryVal > 0 && expiryVal < 10000000000 ? expiryVal * 1000 : expiryVal;
+
     const client = createOAuth2Client();
     client.setCredentials({
         access_token: gscToken.accessToken,
-        refresh_token: gscToken.refreshToken,
-        expiry_date: Number(gscToken.expiryDate),
+        ...(gscToken.refreshToken && { refresh_token: gscToken.refreshToken }),
+        ...(expiryDateMs > 0 && { expiry_date: expiryDateMs }),
     });
 
     // Handle automatic refresh
