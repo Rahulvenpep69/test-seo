@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { SEO_INSTRUCTIONS } from '@/lib/seo/instructions';
 import { EXHAUSTIVE_CHECKS } from '@/lib/seo/checks';
 import { generateTechnicalSeoPdf } from '@/lib/seo/reports';
+import { isValidCrawlableUrl } from '@/lib/seo/crawler';
 import { Download, FileDown } from 'lucide-react';
 
 const tabs = [
@@ -816,13 +817,7 @@ function DashboardContent() {
                                                  ...Object.keys(crawlData || {}),
                                                  ...Object.keys(currentAnalysis.allResults || {}),
                                                  ...(currentAnalysis.stats?.discoveredUrls || []),
-                                             ])).filter(p => {
-                                                 if (!p) return false;
-                                                 const lower = p.toLowerCase();
-                                                 if (lower.includes('/cdn-cgi/') || lower.includes('/email-protection')) return false;
-                                                 if (lower.startsWith('javascript:') || lower.startsWith('mailto:') || lower.startsWith('tel:')) return false;
-                                                 return true;
-                                             });
+                                             ])).filter(isValidCrawlableUrl);
 
                                              const canonicalSeen = new Set<string>();
                                              const uniquePages: string[] = [];

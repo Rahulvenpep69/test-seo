@@ -98,29 +98,59 @@ export interface CrawlProgressData {
     isComplete?: boolean;
 }
 
-function isValidCrawlableUrl(urlStr: string): boolean {
+export function isValidCrawlableUrl(urlStr: string): boolean {
     if (!urlStr) return false;
     const lower = urlStr.toLowerCase();
 
-    if (lower.startsWith('javascript:') || lower.startsWith('mailto:') || lower.startsWith('tel:') || lower.startsWith('data:') || lower.startsWith('#')) {
+    if (
+        lower.startsWith('javascript:') ||
+        lower.startsWith('mailto:') ||
+        lower.startsWith('tel:') ||
+        lower.startsWith('data:') ||
+        lower.startsWith('blob:') ||
+        lower.startsWith('whatsapp:') ||
+        lower.startsWith('tg:') ||
+        lower.startsWith('viber:') ||
+        lower.startsWith('#')
+    ) {
         return false;
     }
 
-    if (lower.includes('/cdn-cgi/') || lower.includes('/email-protection')) {
+    if (
+        lower.includes('/cdn-cgi/') ||
+        lower.includes('/email-protection') ||
+        lower.includes('/wp-json/') ||
+        lower.includes('/wp-includes/') ||
+        lower.includes('action=download') ||
+        lower.includes('format=pdf')
+    ) {
         return false;
     }
 
     const ignoredExtensions = [
-        '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.ico', '.bmp',
-        '.css', '.js', '.pdf', '.zip', '.tar', '.gz', '.mp3', '.mp4', '.avi',
-        '.woff', '.woff2', '.ttf', '.eot', '.xml', '.json'
+        // Images & Graphics
+        '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.avif', '.ico', '.bmp', '.tif', '.tiff', '.psd', '.ai', '.eps', '.raw',
+        // Documents & Office Files
+        '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.rtf', '.odt', '.ods', '.odp', '.csv', '.tsv',
+        // Archives & Binaries
+        '.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.bz2', '.iso', '.dmg', '.exe', '.apk', '.bin', '.deb', '.rpm',
+        // Code, Styles, Fonts & Structured Data
+        '.js', '.mjs', '.cjs', '.css', '.scss', '.sass', '.less', '.xml', '.json', '.jsonld', '.rss', '.atom', '.feed', '.map',
+        '.woff', '.woff2', '.ttf', '.eot', '.otf',
+        // Audio & Video
+        '.mp3', '.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm', '.m4a', '.wav', '.ogg', '.aac', '.flac'
     ];
 
     try {
         const parsed = new URL(urlStr);
         const pathname = parsed.pathname.toLowerCase();
+
         for (const ext of ignoredExtensions) {
             if (pathname.endsWith(ext)) return false;
+        }
+
+        if (pathname.includes('/uploads/') && ignoredExtensions.some(ext => pathname.includes(ext))) {
+            return false;
         }
     } catch {
         return false;
