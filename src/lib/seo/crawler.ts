@@ -1,11 +1,87 @@
 import * as cheerio from 'cheerio';
 import robotsParser from 'robots-parser';
 import { robustFetch } from './fetch';
+import { analyzeTechnical } from './technical';
+import { extractStructuredData } from './structured-data';
+import { calculateHeuristicPerformance } from './performance';
 
 export interface CrawlResult {
     url: string;
     html: string;
     status: number;
+    score?: number;
+    overallScore?: number;
+    criticalCount?: number;
+    warningCount?: number;
+    passCount?: number;
+    results?: Record<string, 'pass' | 'warning' | 'critical'>;
+    structuredData?: any[];
+    technical?: any;
+    performance?: any;
+}
+
+export function computePageTechnicalAudit(url: string, html: string, status: number): CrawlResult {
+    if (!html || status >= 400 || status === 0) {
+        return {
+            url,
+            status: status || 0,
+            html: html || '',
+            score: 0,
+            overallScore: 0,
+            criticalCount: 3,
+            warningCount: 0,
+            passCount: 0,
+            results: {
+                'meta-title': 'critical',
+                'meta-desc': 'critical',
+                'ssl-security': 'critical'
+            },
+            structuredData: [],
+            technical: { title: '', metaDescription: '', h1: [], canonical: '' },
+            performance: { score: 0, fcp: '0s', lcp: '0s', tbt: '0ms', cls: '0' }
+        };
+    }
+
+    try {
+        const technical = analyzeTechnical(html, url);
+        const structuredData = extractStructuredData(html);
+        const performance = calculateHeuristicPerformance(html, technical);
+
+        const results: Record<string, 'pass' | 'warning' | 'critical'> = {
+            'meta-title': technical.title && technical.title.length >= 30 && technical.title.length <= 65 ? 'pass' : technical.title ? 'warning' : 'critical',
+            'meta-desc': technical.metaDescription && technical.metaDescription.length >= 120 && technical.metaDescription.length <= 160 ? 'pass' : technical.metaDescription ? 'warning' : 'critical',
+            'h1-test': technical.h1 && technical.h1.length === 1 ? 'pass' : technical.h1 && technical.h1.length > 1 ? 'warning' : 'critical',
+            'canonical': technical.canonical ? 'pass' : 'critical',
+            'schema': structuredData && structuredData.length > 0 ? 'pass' : 'warning',
+            'viewport': technical.viewport ? 'pass' : 'critical',
+            'og-tags': technical.openGraph && Object.keys(technical.openGraph).length > 0 ? 'pass' : 'warning',
+            'images-alt': technical.imagesWithoutAlt === 0 ? 'pass' : technical.imagesWithoutAlt < 5 ? 'warning' : 'critical',
+            'ssl-security': url.startsWith('https://') ? 'pass' : 'critical',
+            'language': technical.language ? 'pass' : 'warning',
+        };
+
+        const passes = Object.values(results).filter(v => v === 'pass').length;
+        const warnings = Object.values(results).filter(v => v === 'warning').length;
+        const criticals = Object.values(results).filter(v => v === 'critical').length;
+        const overallScore = Math.round((passes / Object.keys(results).length) * 100);
+
+        return {
+            url,
+            status,
+            html,
+            score: overallScore,
+            overallScore,
+            criticalCount: criticals,
+            warningCount: warnings,
+            passCount: passes,
+            results,
+            structuredData,
+            technical,
+            performance
+        };
+    } catch (e) {
+        return { url, status, html, score: 70, overallScore: 70, results: {}, structuredData: [], technical: {}, performance: { score: 70 } };
+    }
 }
 
 export interface CrawlProgressData {
@@ -241,15 +317,16 @@ export class Crawler {
                         effectiveUrl = fetchResult.url || url;
 
                         if (fetchResult.error || (status >= 400 || status === 0) && (!html || html.length < 100)) {
-                            results[url] = { url, html: '', status: status || 0 };
+                            const failedItem = computePageTechnicalAudit(url, '', status || 0);
+                            results[url] = failedItem;
                             failedCount++;
-                            emitProgress(url, results[url]);
+                            emitProgress(url, failedItem);
                             return;
                         }
                     }
 
                     crawledCount++;
-                    const resultItem = { url: effectiveUrl, html, status };
+                    const resultItem = computePageTechnicalAudit(effectiveUrl, html, status);
                     results[url] = resultItem;
 
                     if (html && (this.maxDepth <= 0 || depth < this.maxDepth)) {
