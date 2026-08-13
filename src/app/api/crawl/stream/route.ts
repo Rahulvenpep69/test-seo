@@ -18,11 +18,24 @@ export async function POST(req: NextRequest) {
         const targetUrl = url.startsWith('http') ? url : `https://${url}`;
         const encoder = new TextEncoder();
 
+        let isClosed = false;
+
         const stream = new ReadableStream({
             async start(controller) {
                 const sendEvent = (event: string, data: any) => {
-                    controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+                    if (isClosed) return;
+                    try {
+                        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+                    } catch (e) {
+                        isClosed = true;
+                    }
                 };
+
+                if (req.signal) {
+                    req.signal.addEventListener('abort', () => {
+                        isClosed = true;
+                    });
+                }
 
                 try {
                     const crawler = new Crawler(limit);
@@ -32,12 +45,16 @@ export async function POST(req: NextRequest) {
 
                     sendEvent('complete', { isComplete: true });
                 } catch (err: any) {
-                    console.error('[CrawlStream] Error during crawl:', err);
-                    sendEvent('error', { error: err.message || 'Crawl failed' });
+                    console.error('[CrawlStream] Error during crawl:', err?.message || err);
+                    sendEvent('error', { error: err?.message || 'Crawl failed' });
                 } finally {
-                    controller.close();
+                    isClosed = true;
+                    try { controller.close(); } catch {}
                 }
             },
+            cancel() {
+                isClosed = true;
+            }
         });
 
         return new Response(stream, {
