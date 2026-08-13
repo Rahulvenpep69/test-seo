@@ -8,9 +8,20 @@ export interface CrawlResult {
     status: number;
 }
 
+export interface CrawlProgressData {
+    totalDiscovered: number;
+    crawled: number;
+    failed: number;
+    yetToCrawl: number;
+    progressPercent: number;
+    currentUrl: string;
+    latestResult?: CrawlResult;
+    isComplete?: boolean;
+}
+
 export class Crawler {
     private visited: Set<string> = new Set();
-    private queue: string[] = [];
+    private discovered: Set<string> = new Set();
     private maxPages: number;
     private maxDepth: number;
     private domain: string = '';
@@ -50,7 +61,10 @@ export class Crawler {
         }
     }
 
-    async crawl(startUrl: string): Promise<Record<string, CrawlResult>> {
+    async crawl(
+        startUrl: string,
+        onProgress?: (progress: CrawlProgressData) => void
+    ): Promise<Record<string, CrawlResult>> {
         const results: Record<string, CrawlResult> = {};
 
         let normalizedUrl = startUrl.trim();
@@ -58,44 +72,33 @@ export class Crawler {
             normalizedUrl = `https://${normalizedUrl}`;
         }
 
-        // Establish base domain by following initial redirect
         let initialFetchHtml = '';
         let initialFetchStatus = 200;
+
         try {
-            console.log(`[Crawler] Initial fetch for ${normalizedUrl}`);
-            let fetchResult = await robustFetch(normalizedUrl);
-            console.log(`[Crawler] Initial fetch status: ${fetchResult.status}, Html length: ${fetchResult.html?.length}`);
+            let fetchResult = await robustFetch(normalizedUrl, false);
 
-            if (fetchResult.error || (fetchResult.status >= 400 || fetchResult.status === 0) && (!fetchResult.html || fetchResult.html.length < 100 || fetchResult.html.includes('Just a moment') || fetchResult.html.includes('cf-challenge'))) {
-                throw new Error(fetchResult.error || `Initial fetch failed with status ${fetchResult.status}`);
-            }
-
-            // Check if it's an SPA (Vite/React/etc.) shell with very few links
-            const $ = cheerio.load(fetchResult.html || '');
-            let linkCount = 0;
-            $('a[href]').each((_, el) => {
-                const href = $(el).attr('href');
-                if (href) {
-                    linkCount++;
-                }
-            });
-
-            if (linkCount <= 1) {
-                console.log(`[Crawler] Found very few links (${linkCount}) in raw HTML. Retrying with Playwright browser to check for SPA...`);
-                const browserResult = await robustFetch(normalizedUrl, true);
-                const $browser = cheerio.load(browserResult.html || '');
-                let browserLinkCount = 0;
-                $browser('a[href]').each((_, el) => {
-                    const href = $browser(el).attr('href');
-                    if (href) {
-                        browserLinkCount++;
-                    }
+            if (fetchResult.html && fetchResult.status === 200) {
+                const $ = cheerio.load(fetchResult.html);
+                let linkCount = 0;
+                $('a[href]').each((_, el) => {
+                    const href = $(el).attr('href');
+                    if (href) linkCount++;
                 });
 
-                if (browserLinkCount > linkCount) {
-                    console.log(`[Crawler] SPA detected! Switching to browser mode. Link count increased from ${linkCount} to ${browserLinkCount}`);
-                    fetchResult = browserResult;
-                    this.useBrowser = true;
+                if (linkCount < 3) {
+                    console.log(`[Crawler] Few internal links (${linkCount}). Attempting browser fetch for SPA rendering.`);
+                    const browserResult = await robustFetch(normalizedUrl, true);
+                    let browserLinkCount = 0;
+                    const $b = cheerio.load(browserResult.html);
+                    $b('a[href]').each((_, el) => {
+                        if ($b(el).attr('href')) browserLinkCount++;
+                    });
+
+                    if (browserLinkCount > linkCount) {
+                        fetchResult = browserResult;
+                        this.useBrowser = true;
+                    }
                 }
             }
 
@@ -112,11 +115,34 @@ export class Crawler {
             return {};
         }
 
-        const initialNormalized = this.normalizeUrlForVisited(normalizedUrl);
+        const initialNorm = this.normalizeUrlForVisited(normalizedUrl);
+        this.discovered.add(initialNorm);
+
         const queue: { url: string; depth: number }[] = [{ url: normalizedUrl, depth: 0 }];
         await this.fetchRobots(normalizedUrl);
 
-        // Pre-seed from sitemap.xml to instantly queue all site pages
+        let crawledCount = 0;
+        let failedCount = 0;
+
+        const emitProgress = (currentUrl: string, latestResult?: CrawlResult, isComplete: boolean = false) => {
+            if (!onProgress) return;
+            const totalDiscovered = Math.max(this.discovered.size, queue.length + crawledCount + failedCount);
+            const processedCount = crawledCount + failedCount;
+            const yetToCrawl = Math.max(0, totalDiscovered - processedCount);
+            const progressPercent = totalDiscovered > 0 ? Math.min(100, Math.round((processedCount / totalDiscovered) * 100)) : 0;
+
+            onProgress({
+                totalDiscovered,
+                crawled: crawledCount,
+                failed: failedCount,
+                yetToCrawl,
+                progressPercent,
+                currentUrl,
+                latestResult,
+                isComplete
+            });
+        };
+
         try {
             const sitemapUrl = `${normalizedUrl.replace(/\/$/, '')}/sitemap.xml`;
             const sitemapRes = await robustFetch(sitemapUrl);
@@ -129,7 +155,8 @@ export class Crawler {
                             const u = new URL(loc);
                             if (u.hostname.replace(/^www\./, '') === this.domain) {
                                 const norm = this.normalizeUrlForVisited(loc);
-                                if (!this.visited.has(norm)) {
+                                if (!this.discovered.has(norm)) {
+                                    this.discovered.add(norm);
                                     queue.push({ url: loc, depth: 1 });
                                 }
                             }
@@ -137,14 +164,15 @@ export class Crawler {
                     }
                 });
                 console.log(`[Crawler] Pre-seeded ${queue.length} URLs from sitemap.xml`);
+                emitProgress(normalizedUrl);
             }
         } catch (e) {
             console.log('[Crawler] Sitemap pre-seeding skipped');
         }
 
         const startTime = Date.now();
-        const CRAWL_TIMEOUT_MS = 55000; // 55s safety limit for full site coverage
-        const BATCH_SIZE = 10; // 10 parallel worker fetches for 10x crawling speed
+        const CRAWL_TIMEOUT_MS = 55000;
+        const BATCH_SIZE = 10;
 
         while (queue.length > 0 && (this.maxPages <= 0 || this.visited.size < this.maxPages)) {
             if (Date.now() - startTime > CRAWL_TIMEOUT_MS) {
@@ -152,7 +180,6 @@ export class Crawler {
                 break;
             }
 
-            // Extract up to BATCH_SIZE unvisited items from queue
             const batch: { url: string; depth: number }[] = [];
             while (queue.length > 0 && batch.length < BATCH_SIZE) {
                 const item = queue.shift()!;
@@ -165,7 +192,6 @@ export class Crawler {
 
             if (batch.length === 0) continue;
 
-            // Fetch batch concurrently in parallel
             await Promise.all(batch.map(async ({ url, depth }) => {
                 try {
                     let html = '';
@@ -183,11 +209,15 @@ export class Crawler {
 
                         if (fetchResult.error || (status >= 400 || status === 0) && (!html || html.length < 100)) {
                             results[url] = { url, html: '', status: status || 0 };
+                            failedCount++;
+                            emitProgress(url, results[url]);
                             return;
                         }
                     }
 
-                    results[url] = { url: effectiveUrl, html, status };
+                    crawledCount++;
+                    const resultItem = { url: effectiveUrl, html, status };
+                    results[url] = resultItem;
 
                     if (html && (this.maxDepth <= 0 || depth < this.maxDepth)) {
                         const $ = cheerio.load(html);
@@ -200,20 +230,26 @@ export class Crawler {
                                 if (targetHost === this.domain) {
                                     const cleanUrl = `${absoluteUrl.protocol}//${absoluteUrl.host}${absoluteUrl.pathname}`;
                                     const normalizedTarget = this.normalizeUrlForVisited(cleanUrl);
-                                    if (!this.visited.has(normalizedTarget)) {
+                                    if (!this.discovered.has(normalizedTarget)) {
+                                        this.discovered.add(normalizedTarget);
                                         queue.push({ url: cleanUrl, depth: depth + 1 });
                                     }
                                 }
                             } catch (e) {}
                         });
                     }
+
+                    emitProgress(url, resultItem);
                 } catch (err: any) {
                     console.error(`[Crawler] Error crawling ${url}:`, err.message);
+                    failedCount++;
+                    emitProgress(url);
                 }
             }));
         }
 
-        console.log(`[Crawler] Finished. Crawled ${Object.keys(results).length} pages.`);
+        emitProgress(normalizedUrl, undefined, true);
+        console.log(`[Crawler] Finished. Discovered: ${this.discovered.size}, Crawled: ${crawledCount}, Failed: ${failedCount}`);
         return results || {};
     }
 }

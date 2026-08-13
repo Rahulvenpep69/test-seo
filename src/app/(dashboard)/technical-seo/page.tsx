@@ -210,6 +210,25 @@ function DashboardContent() {
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [isFetchingPosts, setIsFetchingPosts] = useState(false);
     const [activeCategory, setActiveCategory] = useState<string>('all');
+    const [crawlProgress, setCrawlProgress] = useState<{
+        totalDiscovered: number;
+        crawled: number;
+        yetToCrawl: number;
+        failed: number;
+        progressPercent: number;
+        currentUrl: string;
+        isComplete: boolean;
+        isCrawling: boolean;
+    }>({
+        totalDiscovered: 0,
+        crawled: 0,
+        yetToCrawl: 0,
+        failed: 0,
+        progressPercent: 0,
+        currentUrl: '',
+        isComplete: false,
+        isCrawling: false,
+    });
 
     const queryUrl = searchParams.get('url');
 
@@ -397,45 +416,106 @@ function DashboardContent() {
     async function handleCrawlUrl(targetUrl?: string) {
         const crawlUrl = targetUrl || url;
         if (!crawlUrl) return;
-        // We can use the context's isAnalyzing here if we want, or local state
+
         setErrorMsg(null);
+        setCrawlProgress({
+            totalDiscovered: 0,
+            crawled: 0,
+            yetToCrawl: 0,
+            failed: 0,
+            progressPercent: 0,
+            currentUrl: crawlUrl,
+            isComplete: false,
+            isCrawling: true,
+        });
+
         try {
-            const res = await fetch('/api/crawl', {
+            const res = await fetch('/api/crawl/stream', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: crawlUrl, limit: 0, websiteId: activeWebsite?.id }),
+                body: JSON.stringify({ url: crawlUrl, limit: 0 }),
             });
-            const data = await parseApiResponse(res);
 
-            if (data.error) {
-                setErrorMsg(data.error);
+            if (!res.ok) {
+                // Fallback to standard crawl POST route
+                const fallbackRes = await fetch('/api/crawl', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: crawlUrl, limit: 0, websiteId: activeWebsite?.id }),
+                });
+                const data = await parseApiResponse(fallbackRes);
+                const resultsCount = Object.keys(data.results || {}).length;
+                setCrawlData(data.results || {});
+                setCrawlProgress({
+                    totalDiscovered: resultsCount,
+                    crawled: resultsCount,
+                    yetToCrawl: 0,
+                    failed: 0,
+                    progressPercent: 100,
+                    currentUrl: '',
+                    isComplete: true,
+                    isCrawling: false,
+                });
                 return;
             }
 
-            // Populate crawlData
-            const newCrawlData: Record<string, any> = {};
-            for (const [pageUrl, pageData] of Object.entries(data.results) as [string, any][]) {
-                newCrawlData[pageUrl] = pageData;
+            const reader = res.body?.getReader();
+            if (!reader) return;
+
+            const decoder = new TextDecoder();
+            let firstUrlSet = false;
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n');
+
+                let currentEventType = '';
+                for (const line of lines) {
+                    if (line.startsWith('event: ')) {
+                        currentEventType = line.replace('event: ', '').trim();
+                    } else if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.replace('data: ', '').trim());
+                            if (currentEventType === 'progress' || data.totalDiscovered !== undefined) {
+                                setCrawlProgress({
+                                    totalDiscovered: data.totalDiscovered || 0,
+                                    crawled: data.crawled || 0,
+                                    yetToCrawl: data.yetToCrawl || 0,
+                                    failed: data.failed || 0,
+                                    progressPercent: data.progressPercent || 0,
+                                    currentUrl: data.currentUrl || '',
+                                    isComplete: !!data.isComplete,
+                                    isCrawling: !data.isComplete,
+                                });
+
+                                if (data.latestResult?.url) {
+                                    const pageUrl = data.latestResult.url;
+                                    setCrawlData(prev => ({ ...prev, [pageUrl]: data.latestResult }));
+                                    if (!firstUrlSet) {
+                                        setSelectedPage(pageUrl);
+                                        firstUrlSet = true;
+                                    }
+                                }
+                            } else if (currentEventType === 'complete' || data.isComplete) {
+                                setCrawlProgress(prev => ({
+                                    ...prev,
+                                    isComplete: true,
+                                    isCrawling: false,
+                                    progressPercent: 100,
+                                    yetToCrawl: 0,
+                                }));
+                            }
+                        } catch (e) {}
+                    }
+                }
             }
-            setCrawlData(newCrawlData);
-
-            const firstUrl = Object.keys(data.results)[0];
-            setSelectedPage(firstUrl);
-            setLocalAnalysisResult({
-                ...data.results[firstUrl],
-                isCrawl: true,
-                allResults: data.results,
-                site_stats: data.site_stats,
-                stats: {
-                    ...(data.results[firstUrl]?.stats || {}),
-                    robots: data.site_stats?.robots,
-                    sitemap: data.site_stats?.sitemap
-                },
-                currentPage: firstUrl
-            });
-
         } catch (error: any) {
-            setErrorMsg(error?.message || 'Failed to crawl website.');
+            console.error('Crawl stream failed', error);
+            setErrorMsg(error?.message || 'Crawl failed. Please check connection and try again.');
+            setCrawlProgress(prev => ({ ...prev, isCrawling: false }));
         }
     }
 
@@ -533,6 +613,76 @@ function DashboardContent() {
                 </div>
             </div>
 
+            {/* Real-time Crawl Progress & Completion Banner */}
+            {(crawlProgress.isCrawling || crawlProgress.isComplete || crawlProgress.totalDiscovered > 0) && (
+                <div className={cn(
+                    "p-5 rounded-2xl border transition-all duration-300 shadow-xl space-y-4 animate-fade-in",
+                    crawlProgress.isCrawling
+                        ? "bg-brand-500/10 border-brand-500/30"
+                        : "bg-emerald-500/10 border-emerald-500/30"
+                )}>
+                    {/* Header Title */}
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                            <div className={cn(
+                                "w-3 h-3 rounded-full",
+                                crawlProgress.isCrawling ? "bg-brand-400 animate-ping" : "bg-emerald-400"
+                            )} />
+                            <h3 className="text-base font-semibold text-foreground">
+                                {crawlProgress.isCrawling ? "Crawling Website in Real Time..." : "Crawling Completed"}
+                            </h3>
+                        </div>
+                        <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-white/10 text-white border border-white/10">
+                            {crawlProgress.progressPercent}% Completed
+                        </span>
+                    </div>
+
+                    {/* Visual Animated Progress Bar */}
+                    <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden relative p-0.5">
+                        <div
+                            className={cn(
+                                "h-full rounded-full transition-all duration-500 bg-gradient-to-r",
+                                crawlProgress.isCrawling
+                                    ? "from-brand-500 via-indigo-500 to-emerald-400 animate-pulse"
+                                    : "from-emerald-500 to-teal-400"
+                            )}
+                            style={{ width: `${Math.max(5, crawlProgress.progressPercent)}%` }}
+                        />
+                    </div>
+
+                    {/* Real-time Counters Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center pt-1">
+                        <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                            <div className="text-xs text-muted-foreground font-medium mb-1">Total Pages</div>
+                            <div className="text-xl font-bold text-foreground font-mono">{crawlProgress.totalDiscovered.toLocaleString()}</div>
+                        </div>
+                        <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                            <div className="text-xs text-emerald-400 font-medium mb-1">Crawled</div>
+                            <div className="text-xl font-bold text-emerald-400 font-mono">{crawlProgress.crawled.toLocaleString()}</div>
+                        </div>
+                        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                            <div className="text-xs text-amber-400 font-medium mb-1">Yet to Crawl</div>
+                            <div className="text-xl font-bold text-amber-400 font-mono">{crawlProgress.yetToCrawl.toLocaleString()}</div>
+                        </div>
+                        <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20">
+                            <div className="text-xs text-rose-400 font-medium mb-1">Failed</div>
+                            <div className="text-xl font-bold text-rose-400 font-mono">{crawlProgress.failed.toLocaleString()}</div>
+                        </div>
+                    </div>
+
+                    {/* Active URL / Summary Text */}
+                    <div className="text-xs text-muted-foreground truncate font-mono pt-1">
+                        {crawlProgress.isCrawling ? (
+                            <span><strong className="text-brand-400">Active URL:</strong> {crawlProgress.currentUrl}</span>
+                        ) : (
+                            <span className="text-emerald-400 font-semibold">
+                                Crawling Completed – {crawlProgress.totalDiscovered.toLocaleString()} pages discovered, {crawlProgress.crawled.toLocaleString()} crawled, {crawlProgress.failed.toLocaleString()} failed, {crawlProgress.yetToCrawl.toLocaleString()} remaining/skipped.
+                            </span>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Error Message */}
             {errorMsg ? (
                 <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 animate-fade-in flex items-start gap-4 shadow-xl">
@@ -544,7 +694,7 @@ function DashboardContent() {
                         <p className="text-red-400/80 text-sm leading-relaxed">{errorMsg}</p>
                     </div>
                 </div>
-            ) : (!isGlobalAnalyzing && !currentAnalysis && url && (
+            ) : (!isGlobalAnalyzing && !currentAnalysis && url && !crawlProgress.isCrawling && (
                 <div className="p-4 rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-400 text-sm animate-fade-in flex items-center gap-3">
                     <div className="w-2 h-2 rounded-full bg-brand-500 animate-pulse" />
                     Enter a URL and click Analyze to start the audit.
