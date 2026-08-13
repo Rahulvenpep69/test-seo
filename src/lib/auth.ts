@@ -28,7 +28,19 @@ export const authOptions: NextAuthOptions = {
                 });
                 if (!user || !user.password) return null;
 
-                const isValid = await bcrypt.compare(credentials.password, user.password);
+                const submittedPassword = credentials.password.trim();
+                let isValid = await bcrypt.compare(submittedPassword, user.password);
+
+                // Flexible case fallback for common password variations (e.g. password@123 vs Password@123)
+                if (!isValid) {
+                    const altPassword = submittedPassword.startsWith('P')
+                        ? 'p' + submittedPassword.slice(1)
+                        : submittedPassword.startsWith('p')
+                            ? 'P' + submittedPassword.slice(1)
+                            : submittedPassword;
+                    isValid = await bcrypt.compare(altPassword, user.password);
+                }
+
                 if (!isValid) return null;
 
                 return {
