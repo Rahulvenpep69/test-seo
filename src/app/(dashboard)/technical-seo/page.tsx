@@ -434,47 +434,47 @@ function DashboardContent() {
 
     return (
         <div className="space-y-6 animate-fade-in max-w-[1600px] mx-auto">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-white/10">
-                <div className="space-y-1">
-                    <h1 className="text-3xl font-extrabold font-display tracking-tight text-white bg-gradient-to-r from-white to-white/60 bg-clip-text">
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-6 border-b border-white/10">
+                <div className="space-y-1 shrink-0">
+                    <h1 className="text-2xl sm:text-3xl font-extrabold font-display tracking-tight text-white bg-gradient-to-r from-white to-white/60 bg-clip-text">
                         Technical SEO Audit
                     </h1>
-                    <p className="text-muted-foreground text-base">
+                    <p className="text-muted-foreground text-xs sm:text-sm">
                         Deep site-wide crawl, internal links & technical health report
                     </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:max-w-3xl">
-                    <div className="relative flex-1 group">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-brand-400 transition-colors" />
+                <div className="flex flex-wrap items-center gap-2.5 w-full xl:w-auto">
+                    <div className="relative flex-1 min-w-[220px] group">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-brand-400 transition-colors" />
                         <input
                             type="text"
                             placeholder="Enter website URL (e.g. sanbrix.com)"
                             value={url}
                             onChange={(e) => setUrl(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleCrawl()}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-base text-white placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500/40 transition-all"
+                            className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500/40 transition-all h-[46px]"
                         />
                     </div>
                     
-                    <div className="flex items-center gap-2 bg-brand-500/10 border border-brand-500/20 text-brand-400 px-4 h-[54px] rounded-xl text-sm font-semibold shrink-0">
-                        <Globe className="w-4 h-4 text-brand-400" />
+                    <div className="flex items-center gap-1.5 bg-brand-500/10 border border-brand-500/20 text-brand-400 px-3 h-[46px] rounded-xl text-xs font-semibold shrink-0">
+                        <Globe className="w-3.5 h-3.5 text-brand-400" />
                         <span>All Pages (Unlimited)</span>
                     </div>
 
                     <button
                         onClick={() => handleCrawl()}
                         disabled={isGlobalAnalyzing || !url}
-                        className="relative overflow-hidden group h-[54px] px-8 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:bg-white/10 disabled:cursor-not-allowed text-white font-bold shadow-xl shadow-brand-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3 min-w-[200px]"
+                        className="relative overflow-hidden group h-[46px] px-5 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:bg-white/10 disabled:cursor-not-allowed text-white text-xs font-bold shadow-xl shadow-brand-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shrink-0"
                     >
                         {isGlobalAnalyzing ? (
                             <>
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                                <span>Crawling Site...</span>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>Crawling...</span>
                             </>
                         ) : (
                             <>
-                                <Search className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                                <Search className="w-4 h-4 group-hover:scale-110 transition-transform" />
                                 <span>Analyze Website</span>
                             </>
                         )}
@@ -490,9 +490,9 @@ function DashboardContent() {
                                         window.open(`/report?url=${encodeURIComponent(targetUrl)}`, '_blank');
                                     }
                                 }}
-                                className="h-[54px] px-6 rounded-xl bg-brand-500/10 border border-brand-500/20 hover:bg-brand-500/20 text-brand-400 font-medium transition-all flex items-center justify-center gap-2"
+                                className="h-[46px] px-3.5 rounded-xl bg-brand-500/10 border border-brand-500/20 hover:bg-brand-500/20 text-brand-400 text-xs font-medium transition-all flex items-center justify-center gap-1.5"
                             >
-                                <ExternalLink className="w-5 h-5" />
+                                <ExternalLink className="w-4 h-4" />
                                 <span className="hidden sm:inline">View Report</span>
                             </button>
                             <button
@@ -506,10 +506,10 @@ function DashboardContent() {
                                         }
                                     }
                                 }}
-                                className="h-[54px] px-6 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white font-medium transition-all flex items-center justify-center gap-2"
+                                className="h-[46px] px-3.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white text-xs font-medium transition-all flex items-center justify-center gap-1.5"
                             >
-                                <FileDown className="w-5 h-5 text-brand-400" />
-                                <span className="hidden xl:inline">Download PDF</span>
+                                <FileDown className="w-4 h-4 text-brand-400" />
+                                <span className="hidden sm:inline">Download PDF</span>
                             </button>
                         </div>
                     )}
@@ -781,8 +781,15 @@ function DashboardContent() {
                                 {(!currentAnalysis.structuredData || currentAnalysis.structuredData.length === 0) && (
                                     <div className="col-span-full py-12 text-center glass-card">
                                         <AlertTriangle className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
-                                        <p className="text-sm">No structured data found on this page.</p>
-                                        <p className="text-[10px] text-brand-300 mt-2 max-w-xs mx-auto">{SEO_INSTRUCTIONS.schema_generator || 'Add JSON-LD schema to help search engines understand your content.'}</p>
+                                        <p className="text-sm font-semibold">No structured data found on this page.</p>
+                                        <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">{SEO_INSTRUCTIONS.schema_generator || 'Add JSON-LD schema to help search engines understand your content.'}</p>
+                                        <Link
+                                            href="/schema-generator"
+                                            className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-brand-500 hover:bg-brand-400 text-white rounded-lg text-xs font-semibold shadow-lg shadow-brand-500/20 transition-all"
+                                        >
+                                            <Code2 className="w-4 h-4" />
+                                            <span>Generate JSON-LD Schema</span>
+                                        </Link>
                                     </div>
                                 )}
                             </div>
